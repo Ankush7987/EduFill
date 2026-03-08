@@ -93,15 +93,16 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     }, 'image/jpeg', 1.0);
   };
 
-  // --- 100% PERFECT PASSPORT GENERATOR (WITH AUTO ENHANCE) ---
+  // --- 100% PERFECT PASSPORT GENERATOR (WITH 20px SMART HEAD PADDING) ---
   const processPassportPhoto = async (croppedBlob, name) => {
     let finalBlobToProcess = croppedBlob;
+    let isBgRemoved = false; 
 
     try {
       const apiKey = "navkJvJVi2bg4G2bTWLJDWva"; 
 
       if (apiKey) {
-        setProgressText('AI is removing background instantly...');
+        setProgressText('AI is framing the perfect photo...');
         const smallBlob = await imageCompression(croppedBlob, { maxSizeMB: 2, maxWidthOrHeight: 1000 });
         
         const formData = new FormData();
@@ -116,6 +117,7 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
 
         if (response.ok) {
           finalBlobToProcess = await response.blob();
+          isBgRemoved = true; 
         } else {
           console.warn("Remove.bg failed or limit reached. Using original photo.");
         }
@@ -133,7 +135,7 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     
     canvas.width = finalWidth; canvas.height = finalHeight; 
     
-    // 1. Fill White Background
+    // 1. Fill Complete White Background
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
@@ -143,20 +145,27 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     ctx.rect(0, 0, finalWidth, photoHeight); 
     ctx.clip(); 
 
-    const scale = Math.max(finalWidth / imageBmp.width, photoHeight / imageBmp.height);
-    const x = (finalWidth / 2) - (imageBmp.width / 2) * scale;
-    const y = (photoHeight / 2) - (imageBmp.height / 2) * scale;
+    // 🌟 MAGIC FIX: SMART 20px HEAD MARGIN 🌟
+    let scale, x, y;
     
-    // 🌟 MAGIC STUDIO ENHANCER (Safe & Natural) 🌟
-    // Ye line photo ko Clean, Clear aur Vibrant banati hai bina usko kharab kiye
+    if (isBgRemoved) {
+      scale = finalWidth / imageBmp.width;
+      x = 0;
+      y = 20; // <-- NAYA: 30px se 20px kar diya hai ekdum perfect balance ke liye!
+    } else {
+      scale = Math.max(finalWidth / imageBmp.width, photoHeight / imageBmp.height);
+      x = (finalWidth / 2) - (imageBmp.width / 2) * scale;
+      y = (photoHeight / 2) - (imageBmp.height / 2) * scale;
+    }
+    
+    // 🌟 Studio Enhancer: Clear & Vibrant Photo 🌟
     ctx.filter = 'contrast(105%) brightness(102%) saturate(110%)';
-    
     ctx.drawImage(imageBmp, x, y, imageBmp.width * scale, imageBmp.height * scale);
 
-    ctx.restore(); // Mask hataya
-    ctx.filter = 'none'; // Filter reset (taaki border aur text par effect na aaye)
+    ctx.restore(); 
+    ctx.filter = 'none'; 
 
-    // 3. Name area ko white paint karein
+    // 3. Name area ko dubara perfectly white paint karein
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, photoHeight, finalWidth, textAreaHeight);
     
@@ -198,7 +207,6 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d');
     
-    // Docs ko bhi thoda clear (contrast) kar denge taaki PDF achhi bane
     ctx.filter = 'contrast(102%)';
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
     ctx.drawImage(imageBmp, 0, 0, width, height);
@@ -324,7 +332,7 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
           <div className={`border p-3 rounded-xl transition-colors ${files.casteCert ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white hover:border-indigo-300'}`}>
             <label className="flex items-center justify-between cursor-pointer w-full">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${files.casteCert ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}><FileText size={20}/></div>
+                <div className={`p-2 rounded-lg ${files.casteCert ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>{doc.icon}</div>
                 <div><p className="font-bold text-sm text-gray-800">Caste Certificate *</p><p className="text-[10px] text-gray-500">Required for {category}</p></div>
               </div>
               <div className="flex items-center gap-3">
