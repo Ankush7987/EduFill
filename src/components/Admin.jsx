@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-// 🌟 FIX: Yahan 'Check' icon ko import list me add kar diya gaya hai 🌟
-import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+// 🌟 NAYA: RotateCw icon yahan bhi import kiya 🌟
+import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
+import { jsPDF } from 'jspdf';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
-// FIREBASE REAL-TIME IMPORTS
 import { collection, doc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../firebase'; 
 
-// IMPORT COMPONENTS
 import AdminLogin from './admin/AdminLogin';
 import PaymentModal from './admin/PaymentModal';
 import WalkInModal from './admin/WalkInModal';
@@ -17,7 +19,6 @@ export default function AdminPanel() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   
-  // STATE MANAGEMENT
   const [activeTab, setActiveTab] = useState('dashboard');
   const [bookings, setBookings] = useState([]);
   const [campRequests, setCampRequests] = useState([]); 
@@ -25,12 +26,10 @@ export default function AdminPanel() {
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
   const [loading, setLoading] = useState(true);
   
-  // FILTERS
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [searchQuery, setSearchQuery] = useState(''); 
   const [dateFilter, setDateFilter] = useState(''); 
 
-  // MODAL STATES
   const [isWalkInModalOpen, setIsWalkInModalOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState({ exam: '', institute: '', fullName: '', mobile: '', batchName: '', category: '', slotDate: '', slotTime: '' });
   const [savingWalkIn, setSavingWalkIn] = useState(false);
@@ -39,14 +38,21 @@ export default function AdminPanel() {
   const [paymentData, setPaymentData] = useState({ id: '', colName: '', amount: '', method: 'Online' });
   const [savingPayment, setSavingPayment] = useState(false);
 
-  // DOCUMENTS VIEWER & UPLOADER MODAL STATE
   const [docsModalOpen, setDocsModalOpen] = useState(false);
-  const [selectedDocs, setSelectedDocs] = useState(null);
-  const [selectedStudentName, setSelectedStudentName] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null); 
+  const [replacingDoc, setReplacingDoc] = useState(null); 
+  
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
 
-  // --- FIREBASE REAL-TIME LISTENERS ---
+  const [replaceCropModalOpen, setReplaceCropModalOpen] = useState(false);
+  const [replaceImgSrc, setReplaceImgSrc] = useState('');
+  const [replaceDocKey, setReplaceDocKey] = useState('');
+  const [replaceRawFile, setReplaceRawFile] = useState(null);
+  const [replaceCrop, setReplaceCrop] = useState();
+  const [replaceCompletedCrop, setReplaceCompletedCrop] = useState(null);
+  const replaceImgRef = useRef(null);
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -94,7 +100,6 @@ export default function AdminPanel() {
     return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); };
   }, [isAuthenticated]);
 
-  // --- ACTIONS & LOGIC ---
   const handleLogin = (e) => {
     e.preventDefault();
     if (password === 'Ankush@7987') { setIsAuthenticated(true); setError(''); } 
@@ -198,8 +203,6 @@ export default function AdminPanel() {
     finally { setSavingWalkIn(false); }
   };
 
-  const openDocsModal = (docs, name) => { setSelectedDocs(docs); setSelectedStudentName(name); setDocsModalOpen(true); };
-
   const getDownloadUrl = (url) => {
     if (!url) return '';
     if (url.includes('res.cloudinary.com')) {
@@ -211,13 +214,201 @@ export default function AdminPanel() {
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "Just Now";
-    // Fix: Add check to prevent crashing if timestamp is broken
     if (typeof timestamp.toDate !== 'function') return "Processing...";
     const date = timestamp.toDate();
     return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
-  // --- FILTERS & SEARCH ---
+  const processPassportPhoto = async (croppedBlob, name) => {
+    let finalBlobToProcess = croppedBlob;
+    let isBgRemoved = false; 
+
+    try {
+      const apiKey = "navkJvJVi2bg4G2bTWLJDWva"; 
+      if (apiKey) {
+        const smallBlob = await imageCompression(croppedBlob, { maxSizeMB: 2, maxWidthOrHeight: 1000 });
+        const formData = new FormData();
+        formData.append('image_file', smallBlob, 'photo.jpg');
+        formData.append('size', 'auto');
+
+        const response = await fetch('https://api.remove.bg/v1.0/removebg', { method: 'POST', headers: { 'X-Api-Key': apiKey }, body: formData });
+        if (response.ok) { finalBlobToProcess = await response.blob(); isBgRemoved = true; }
+      }
+    } catch (error) { console.warn("API Error:", error); }
+
+    const imageBmp = await createImageBitmap(finalBlobToProcess);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const finalWidth = 413; const finalHeight = 531; const textAreaHeight = 85;
+    const photoHeight = finalHeight - textAreaHeight; 
+    canvas.width = finalWidth; canvas.height = finalHeight; 
+    
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, finalWidth, photoHeight); ctx.clip(); 
+
+    let scale, x, y;
+    if (isBgRemoved) { scale = finalWidth / imageBmp.width; x = 0; y = 20; } 
+    else { scale = Math.max(finalWidth / imageBmp.width, photoHeight / imageBmp.height); x = (finalWidth / 2) - (imageBmp.width / 2) * scale; y = (photoHeight / 2) - (imageBmp.height / 2) * scale; }
+    
+    ctx.filter = 'contrast(105%) brightness(102%) saturate(110%)';
+    ctx.drawImage(imageBmp, x, y, imageBmp.width * scale, imageBmp.height * scale);
+    ctx.restore(); ctx.filter = 'none'; 
+
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, photoHeight, finalWidth, textAreaHeight);
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4); 
+    ctx.beginPath(); ctx.moveTo(0, photoHeight); ctx.lineTo(finalWidth, photoHeight); ctx.stroke();
+
+    ctx.fillStyle = '#000000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const dateStr = new Date().toLocaleDateString('en-GB'); const safeName = name.toUpperCase().trim();
+    let fontSize = 26; ctx.font = `bold ${fontSize}px Arial`;
+    while (ctx.measureText(safeName).width > (finalWidth - 20) && fontSize > 12) { fontSize -= 1; ctx.font = `bold ${fontSize}px Arial`; }
+    ctx.fillText(safeName, finalWidth / 2, photoHeight + 35);
+    ctx.font = 'bold 20px Arial'; ctx.fillText(dateStr, finalWidth / 2, photoHeight + 65);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+    return await imageCompression(new File([blob], 'profile.jpg', { type: 'image/jpeg' }), { maxSizeMB: 0.1, maxWidthOrHeight: 800, useWebWorker: true });
+  };
+
+  const processDocumentToPDF = async (file, docName) => {
+    if (file.type === 'application/pdf') return file; 
+    const imageBmp = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    const MAX_WIDTH = 1200;
+    let width = imageBmp.width; let height = imageBmp.height;
+    if (width > MAX_WIDTH) { height = height * (MAX_WIDTH / width); width = MAX_WIDTH; }
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.filter = 'contrast(102%)'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height); ctx.drawImage(imageBmp, 0, 0, width, height); ctx.filter = 'none';
+    const imgData = canvas.toDataURL('image/jpeg', 0.8); 
+    const pdf = new jsPDF({ orientation: width > height ? 'l' : 'p', unit: 'px', format: [width, height] });
+    pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+    const pdfBlob = pdf.output('blob');
+    return new File([pdfBlob], `${docName}.pdf`, { type: 'application/pdf' });
+  };
+
+  const handleReplaceFileChange = (e, docKey) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type === 'application/pdf') {
+      processAndUploadReplace(file, docKey); 
+      return;
+    }
+
+    setReplaceRawFile(file);
+    setReplaceDocKey(docKey);
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setReplaceImgSrc(reader.result);
+      setReplaceCompletedCrop(null);
+      setReplaceCropModalOpen(true);
+    });
+    reader.readAsDataURL(file);
+  };
+
+  const onReplaceImageLoad = (e) => {
+    const { width, height } = e.currentTarget;
+    let aspect = undefined;
+    if (replaceDocKey === 'profilePicUrl') aspect = 413 / 446; 
+    if (replaceDocKey === 'signatureUrl') aspect = 3 / 1; 
+
+    if (aspect) {
+      const newCrop = centerCrop(makeAspectCrop({ unit: '%', width: 90 }, aspect, width, height), width, height);
+      setReplaceCrop(newCrop); setReplaceCompletedCrop(newCrop); 
+    } else {
+      const fullCrop = { unit: '%', width: 100, height: 100, x: 0, y: 0 };
+      setReplaceCrop(fullCrop); setReplaceCompletedCrop(fullCrop);
+    }
+  };
+
+  // 🌟 NAYA: ADMIN REPLACE ROTATE FUNCTION 🌟
+  const handleReplaceRotate = () => {
+    const image = replaceImgRef.current;
+    if (!image) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = image.naturalHeight;
+    canvas.height = image.naturalWidth;
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(90 * Math.PI / 180);
+    ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+    setReplaceImgSrc(canvas.toDataURL('image/jpeg', 1.0));
+    setReplaceCompletedCrop(null);
+  };
+
+  const handleReplaceUseOriginal = () => {
+    setReplaceCropModalOpen(false); 
+    processAndUploadReplace(replaceRawFile, replaceDocKey);
+  };
+
+  const handleReplaceCropSave = async () => {
+    if (!replaceCompletedCrop || !replaceCompletedCrop.width || !replaceCompletedCrop.height) {
+      handleReplaceUseOriginal(); return;
+    }
+    const image = replaceImgRef.current;
+    let cropX, cropY, cropW, cropH;
+    if (replaceCompletedCrop.unit === '%') {
+      cropX = (replaceCompletedCrop.x / 100) * image.width; cropY = (replaceCompletedCrop.y / 100) * image.height;
+      cropW = (replaceCompletedCrop.width / 100) * image.width; cropH = (replaceCompletedCrop.height / 100) * image.height;
+    } else {
+      cropX = replaceCompletedCrop.x; cropY = replaceCompletedCrop.y; cropW = replaceCompletedCrop.width; cropH = replaceCompletedCrop.height;
+    }
+
+    const canvas = document.createElement('canvas');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    canvas.width = cropW * scaleX; canvas.height = cropH * scaleY;
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(image, cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      blob.name = `${replaceDocKey}.jpg`;
+      setReplaceCropModalOpen(false);
+      processAndUploadReplace(blob, replaceDocKey); 
+    }, 'image/jpeg', 1.0);
+  };
+
+  const processAndUploadReplace = async (fileBlob, docKey) => {
+    setReplacingDoc(docKey); 
+    try {
+      let finalFile;
+      const safeName = selectedStudent.fullName.replace(/[^a-zA-Z0-9]/g, '_');
+
+      if (docKey === 'profilePicUrl') {
+        finalFile = await processPassportPhoto(fileBlob, selectedStudent.fullName);
+      } else if (docKey === 'signatureUrl') {
+        finalFile = await imageCompression(fileBlob, { maxSizeMB: 0.1, maxWidthOrHeight: 800, useWebWorker: true });
+      } else {
+        finalFile = await processDocumentToPDF(fileBlob, `${safeName}_${docKey}`);
+      }
+
+      const formData = new FormData();
+      formData.append("file", finalFile);
+      formData.append("upload_preset", "edufill_docs"); 
+      const response = await fetch(`https://api.cloudinary.com/v1_1/dvocl6wvq/auto/upload`, { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Upload Failed");
+
+      const newFileUrl = data.secure_url;
+
+      const updatedDocsMap = { ...selectedStudent.documents, [docKey]: newFileUrl };
+      await updateDoc(doc(db, selectedStudent.collectionName, selectedStudent.id), { documents: updatedDocsMap });
+
+      setSelectedStudent({ ...selectedStudent, documents: updatedDocsMap });
+      alert("Document successfully processed and replaced! ✨");
+      
+    } catch (err) {
+      console.error("Error replacing document:", err);
+      alert("Failed to replace document. Please check your connection.");
+    } finally {
+      setReplacingDoc(null); 
+    }
+  };
+
   const filteredBookings = bookings.filter(booking => {
     let categoryMatch = true;
     if (activeFilter === 'Ribosome') categoryMatch = booking.collectionName === 'Ribosome_Students';
@@ -270,7 +461,36 @@ export default function AdminPanel() {
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutesList} />
 
-      {/* ADMIN DOCUMENT UPLOAD MODAL */}
+      {/* 🌟 ADMIN REPLACE CROPPER MODAL (WITH ROTATE BUTTON) 🌟 */}
+      {replaceCropModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh] shadow-2xl">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-white z-10 shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><CropIcon size={20}/> Adjust & Replace Image</h3>
+                <p className="text-xs text-gray-500 mt-1">Rotate or crop properly before the system processes it.</p>
+              </div>
+              <button onClick={() => setReplaceCropModalOpen(false)} className="text-gray-400 hover:text-red-500"><X size={24}/></button>
+            </div>
+            
+            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center items-start">
+              <ReactCrop crop={replaceCrop} onChange={(_, percentCrop) => setReplaceCrop(percentCrop)} onComplete={(c) => setReplaceCompletedCrop(c)}>
+                <img ref={replaceImgRef} src={replaceImgSrc} onLoad={onReplaceImageLoad} alt="Crop preview" className="max-w-full h-auto shadow-md" style={{ maxHeight: '50vh', objectFit: 'contain' }}/>
+              </ReactCrop>
+            </div>
+
+            {/* 🌟 NAYA: ROTATE BUTTON UI 🌟 */}
+            <div className="p-4 border-t border-gray-100 bg-white z-10 shrink-0 flex flex-col sm:flex-row gap-3">
+              <button onClick={handleReplaceRotate} className="flex-1 flex justify-center items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3.5 rounded-xl transition-colors border border-blue-200">
+                <RotateCw size={18}/> Rotate 90°
+              </button>
+              <button onClick={handleReplaceUseOriginal} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 rounded-xl transition-colors border border-gray-200">Skip Cropping</button>
+              <button onClick={handleReplaceCropSave} className="flex-1 flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg transition-colors"><Check size={18}/> Crop & Process</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isUploadModalOpen && uploadTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative my-8">
@@ -281,37 +501,48 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* DOCUMENTS VIEWER MODAL */}
-      {docsModalOpen && selectedDocs && (
+      {docsModalOpen && selectedStudent && selectedStudent.documents && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText size={24} className="text-blue-600"/> Documents Manager</h3>
               <button onClick={() => setDocsModalOpen(false)} className="bg-gray-100 p-2 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors"><X size={20}/></button>
             </div>
-            <p className="text-sm text-gray-500 mb-4 font-medium">Student: <span className="text-gray-900">{selectedStudentName}</span></p>
+            <p className="text-sm text-gray-500 mb-4 font-medium">Student: <span className="text-gray-900 font-bold">{selectedStudent.fullName}</span></p>
             
             <div className="space-y-3">
-              {selectedDocs.profilePicUrl && (
-                <div className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
-                  <span className="font-bold text-blue-800 text-sm">🖼️ Passport Photo</span>
-                  <div className="flex gap-2">
-                    <a href={selectedDocs.profilePicUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition-all">View</a>
-                    <a href={getDownloadUrl(selectedDocs.profilePicUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">Download</a>
+              {[
+                { key: 'profilePicUrl', label: '🖼️ Passport Photo' },
+                { key: 'signatureUrl', label: '✍️ Signature' },
+                { key: 'tenthUrl', label: '📄 10th Marksheet' },
+                { key: 'domicileUrl', label: '📄 Niwash Praman' },
+                { key: 'casteUrl', label: selectedStudent.category === 'General (EWS)' ? '📄 EWS Certificate' : '📄 Caste Cert.' }
+              ].map((docItem) => {
+                const docUrl = selectedStudent.documents[docItem.key];
+                if (!docUrl) return null; 
+                
+                return (
+                  <div key={docItem.key} className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                    <span className="font-bold text-blue-800 text-sm">{docItem.label}</span>
+                    <div className="flex gap-2 items-center">
+                      <a href={docUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition-all">View</a>
+                      <a href={getDownloadUrl(docUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">DL</a>
+                      
+                      <label className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ${replacingDoc === docItem.key ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
+                        {replacingDoc === docItem.key ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
+                        {replacingDoc === docItem.key ? 'Wait...' : 'Replace'}
+                        <input type="file" className="hidden" disabled={replacingDoc === docItem.key} accept="image/*,application/pdf" onChange={(e) => handleReplaceFileChange(e, docItem.key)} />
+                      </label>
+                    </div>
                   </div>
-                </div>
-              )}
-              {selectedDocs.signatureUrl && (<div className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl"><span className="font-bold text-blue-800 text-sm">✍️ Signature</span><div className="flex gap-2"><a href={selectedDocs.signatureUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition-all">View</a><a href={getDownloadUrl(selectedDocs.signatureUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">Download</a></div></div>)}
-              {selectedDocs.tenthUrl && (<div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl"><span className="font-bold text-indigo-800 text-sm">📄 10th Marksheet</span><div className="flex gap-2"><a href={selectedDocs.tenthUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-lg text-xs font-bold transition-all">View</a><a href={getDownloadUrl(selectedDocs.tenthUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">Download</a></div></div>)}
-              {selectedDocs.domicileUrl && (<div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl"><span className="font-bold text-indigo-800 text-sm">📄 Niwash Praman</span><div className="flex gap-2"><a href={selectedDocs.domicileUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-lg text-xs font-bold transition-all">View</a><a href={getDownloadUrl(selectedDocs.domicileUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">Download</a></div></div>)}
-              {selectedDocs.casteUrl && (<div className="flex items-center justify-between p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl"><span className="font-bold text-indigo-800 text-sm">📄 Caste Cert.</span><div className="flex gap-2"><a href={selectedDocs.casteUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-lg text-xs font-bold transition-all">View</a><a href={getDownloadUrl(selectedDocs.casteUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">Download</a></div></div>)}
+                );
+              })}
             </div>
             <button onClick={() => setDocsModalOpen(false)} className="w-full mt-6 bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-all">Close</button>
           </div>
         </div>
       )}
 
-      {/* --- SIDEBAR --- */}
       <aside className="w-64 bg-gray-900 text-white hidden md:flex flex-col flex-shrink-0 z-20">
         <div className="p-6 border-b border-gray-800 flex items-center gap-3">
           <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl">EF</div>
@@ -339,10 +570,7 @@ export default function AdminPanel() {
         </div>
       </aside>
 
-      {/* --- MAIN CONTENT --- */}
       <main className="flex-1 p-6 lg:p-10 overflow-y-auto">
-        
-        {/* TAB 1: DASHBOARD VIEW */}
         {activeTab === 'dashboard' && (
            <div className="animate-in fade-in duration-500">
              <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-8">
@@ -448,7 +676,7 @@ export default function AdminPanel() {
                           <td className="p-4 align-top">
                             <div className="flex items-center justify-end gap-2">
                               {booking.documents ? (
-                                <button onClick={() => openDocsModal(booking.documents, booking.fullName)} className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-100"><FileText size={18}/></button>
+                                <button onClick={() => { setSelectedStudent(booking); setDocsModalOpen(true); }} className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-100"><FileText size={18}/></button>
                               ) : (
                                 <button onClick={() => { setUploadTarget(booking); setIsUploadModalOpen(true); }} className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg transition-all shadow-sm"><Upload size={14}/> Upload</button>
                               )}
