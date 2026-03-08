@@ -6,7 +6,6 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css'; 
-import { removeBackground } from "@imgly/background-removal"; 
 
 const DocumentUploader = ({ studentId, collectionName, studentName, category, onComplete }) => {
   const [uploading, setUploading] = useState(false);
@@ -18,7 +17,6 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
 
   const [files, setFiles] = useState({ profilePic: null, signature: null, tenthMarkSheet: null, domicile: null, casteCert: null });
 
-  // --- SMART CROPPER STATE ---
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [imgSrc, setImgSrc] = useState('');
   const [cropDocType, setCropDocType] = useState('');
@@ -51,143 +49,135 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
   const onImageLoad = (e) => {
     const { width, height } = e.currentTarget;
     let aspect = undefined;
-    
-    // Naya Ratio: Photo width 413, aur photo height (531 total me se 85 text ka hatakar) = 446
     if (cropDocType === 'profilePic') aspect = 413 / 446; 
     if (cropDocType === 'signature') aspect = 3 / 1; 
 
     if (aspect) {
       const newCrop = centerCrop(makeAspectCrop({ unit: '%', width: 90 }, aspect, width, height), width, height);
-      setCrop(newCrop);
-      setCompletedCrop(newCrop); 
+      setCrop(newCrop); setCompletedCrop(newCrop); 
     } else {
       const fullCrop = { unit: '%', width: 100, height: 100, x: 0, y: 0 };
-      setCrop(fullCrop); 
-      setCompletedCrop(fullCrop);
+      setCrop(fullCrop); setCompletedCrop(fullCrop);
     }
   };
 
   const handleUseOriginal = () => {
     setFiles(prev => ({ ...prev, [cropDocType]: currentRawFile }));
-    setCropModalOpen(false);
-    setImgSrc('');
-    setCurrentRawFile(null);
+    setCropModalOpen(false); setImgSrc(''); setCurrentRawFile(null);
   };
 
   const handleCropSave = async () => {
     if (!completedCrop || !completedCrop.width || !completedCrop.height) {
-      handleUseOriginal();
-      return;
+      handleUseOriginal(); return;
     }
-    
     const image = imgRef.current;
-    
     let cropX, cropY, cropW, cropH;
     if (completedCrop.unit === '%') {
-      cropX = (completedCrop.x / 100) * image.width;
-      cropY = (completedCrop.y / 100) * image.height;
-      cropW = (completedCrop.width / 100) * image.width;
-      cropH = (completedCrop.height / 100) * image.height;
+      cropX = (completedCrop.x / 100) * image.width; cropY = (completedCrop.y / 100) * image.height;
+      cropW = (completedCrop.width / 100) * image.width; cropH = (completedCrop.height / 100) * image.height;
     } else {
-      cropX = completedCrop.x; cropY = completedCrop.y;
-      cropW = completedCrop.width; cropH = completedCrop.height;
+      cropX = completedCrop.x; cropY = completedCrop.y; cropW = completedCrop.width; cropH = completedCrop.height;
     }
 
     const canvas = document.createElement('canvas');
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
-    
-    canvas.width = cropW * scaleX;
-    canvas.height = cropH * scaleY;
+    canvas.width = cropW * scaleX; canvas.height = cropH * scaleY;
     const ctx = canvas.getContext('2d');
 
-    ctx.drawImage(
-      image,
-      cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY,
-      0, 0, canvas.width, canvas.height
-    );
-
+    ctx.drawImage(image, cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       blob.name = `${cropDocType}.jpg`;
       setFiles(prev => ({ ...prev, [cropDocType]: blob }));
-      setCropModalOpen(false);
-      setImgSrc('');
-      setCurrentRawFile(null);
+      setCropModalOpen(false); setImgSrc(''); setCurrentRawFile(null);
     }, 'image/jpeg', 1.0);
   };
 
-  // --- MAGICAL AI BACKGROUND REMOVER & 413x531 PASSPORT GENERATOR ---
+  // --- 100% PERFECT PASSPORT GENERATOR WITH REMOVE.BG API ---
   const processPassportPhoto = async (croppedBlob, name) => {
     let finalBlobToProcess = croppedBlob;
 
     try {
-      setProgressText('AI is removing background (Please wait)...');
-      finalBlobToProcess = await removeBackground(croppedBlob);
+      // 👇 AAPKI LIVE API KEY 👇
+      const apiKey = "navkJvJVi2bg4G2bTWLJDWva"; 
+
+      if (apiKey) {
+        setProgressText('AI is removing background instantly...');
+        // Thoda compress karke bhejenge taaki internet slow ho tab bhi fast upload ho
+        const smallBlob = await imageCompression(croppedBlob, { maxSizeMB: 2, maxWidthOrHeight: 1000 });
+        
+        const formData = new FormData();
+        formData.append('image_file', smallBlob, 'photo.jpg');
+        formData.append('size', 'auto');
+
+        const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+          method: 'POST',
+          headers: { 'X-Api-Key': apiKey },
+          body: formData
+        });
+
+        if (response.ok) {
+          finalBlobToProcess = await response.blob();
+        } else {
+          console.warn("Remove.bg failed or limit reached. Using original photo.");
+        }
+      }
     } catch (error) {
-      console.warn("Background removal failed, using original", error);
+      console.warn("API Error:", error);
     }
 
     const imageBmp = await createImageBitmap(finalBlobToProcess);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
-    // User Requirements: EXACTLY 413x531 Total Size
-    const finalWidth = 413; 
-    const finalHeight = 531; 
-    const textAreaHeight = 85;
-    const photoHeight = finalHeight - textAreaHeight; // 446 px photo area
+    const finalWidth = 413; const finalHeight = 531; const textAreaHeight = 85;
+    const photoHeight = finalHeight - textAreaHeight; // 446px for photo
     
-    canvas.width = finalWidth; 
-    canvas.height = finalHeight; 
+    canvas.width = finalWidth; canvas.height = finalHeight; 
     
-    // 1. Fill Pure White Background everywhere
+    // 1. Pura Canvas Ekdum White Karein
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 2. Draw the Person (Fit perfectly in the photo height)
+    // 2. 🚨 CLIPPING MASK: Photo ko Name patti ke piche aane se rokna 🚨
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, finalWidth, photoHeight); 
+    ctx.clip(); 
+
     const scale = Math.max(finalWidth / imageBmp.width, photoHeight / imageBmp.height);
     const x = (finalWidth / 2) - (imageBmp.width / 2) * scale;
     const y = (photoHeight / 2) - (imageBmp.height / 2) * scale;
     ctx.drawImage(imageBmp, x, y, imageBmp.width * scale, imageBmp.height * scale);
 
-    // 3. Clear bottom area to pure white for text
+    ctx.restore(); // Mask hataya taaki border/text aa sake
+
+    // 3. Name/Date area ko fir se perfectly white paint karein
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, photoHeight, finalWidth, textAreaHeight);
     
-    // 4. DRAW PROMINENT BLACK BORDER
+    // 4. Perfect Black Borders
     ctx.strokeStyle = '#000000'; 
-    ctx.lineWidth = 4; // Bold border
-    // Main outer border (2px shifted inside to not cut off)
-    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
-    
-    // Line separating Photo and Text
+    ctx.lineWidth = 4; 
+    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4); // Outer
     ctx.beginPath();
     ctx.moveTo(0, photoHeight);
-    ctx.lineTo(finalWidth, photoHeight);
+    ctx.lineTo(finalWidth, photoHeight); // Divider
     ctx.stroke();
 
-    // 5. Draw Name & Date Section
-    ctx.fillStyle = '#000000'; 
-    ctx.textAlign = 'center'; 
-    ctx.textBaseline = 'middle';
-
+    // 5. Name & Date Print
+    ctx.fillStyle = '#000000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const dateStr = new Date().toLocaleDateString('en-GB'); 
     const safeName = name.toUpperCase().trim();
     
-    // Smart Font Sizer
-    let fontSize = 26;
-    ctx.font = `bold ${fontSize}px Arial`;
+    let fontSize = 26; ctx.font = `bold ${fontSize}px Arial`;
     while (ctx.measureText(safeName).width > (finalWidth - 20) && fontSize > 12) {
       fontSize -= 1; ctx.font = `bold ${fontSize}px Arial`;
     }
-    
     ctx.fillText(safeName, finalWidth / 2, photoHeight + 35);
-    
-    ctx.font = 'bold 20px Arial'; 
-    ctx.fillText(dateStr, finalWidth / 2, photoHeight + 65);
+    ctx.font = 'bold 20px Arial'; ctx.fillText(dateStr, finalWidth / 2, photoHeight + 65);
 
-    // 6. Compress and Return
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
     return await imageCompression(new File([blob], 'profile.jpg', { type: 'image/jpeg' }), { maxSizeMB: 0.1, maxWidthOrHeight: 800, useWebWorker: true });
   };
 
@@ -232,8 +222,9 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     const safeName = studentName.replace(/[^a-zA-Z0-9]/g, '_'); 
 
     try {
-      setProgressText('Preparing Magic Profile Photo...');
+      setProgressText('Preparing Perfect Profile Photo...');
       const finalPhoto = await processPassportPhoto(files.profilePic, studentName);
+      
       setProgressText('Uploading Profile Photo...');
       uploadedUrls.profilePicUrl = await uploadToCloudinary(finalPhoto);
 
@@ -255,12 +246,12 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
         uploadedUrls.casteUrl = await uploadToCloudinary(casteDoc);
       }
 
-      setProgressText('Finalizing records...');
+      setProgressText('Saving to Database...');
       await updateDoc(doc(db, collectionName, studentId), { documents: uploadedUrls });
       onComplete(); 
     } catch (error) {
       console.error("Upload error: ", error);
-      alert("Failed to upload. Check connection.");
+      alert("Failed to upload. Please check your internet connection.");
     } finally { setUploading(false); }
   };
 
@@ -282,24 +273,13 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
             
             <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center items-start">
               <ReactCrop crop={crop} onChange={(_, percentCrop) => setCrop(percentCrop)} onComplete={(c) => setCompletedCrop(c)}>
-                <img 
-                  ref={imgRef} 
-                  src={imgSrc} 
-                  onLoad={onImageLoad} 
-                  alt="Crop preview" 
-                  className="max-w-full h-auto shadow-md"
-                  style={{ maxHeight: '50vh', objectFit: 'contain' }}
-                />
+                <img ref={imgRef} src={imgSrc} onLoad={onImageLoad} alt="Crop preview" className="max-w-full h-auto shadow-md" style={{ maxHeight: '50vh', objectFit: 'contain' }}/>
               </ReactCrop>
             </div>
 
             <div className="p-5 border-t border-gray-100 bg-white z-10 shrink-0 flex flex-col sm:flex-row gap-3">
-              <button onClick={handleUseOriginal} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 rounded-xl transition-colors border border-gray-200">
-                Skip & Use Original
-              </button>
-              <button onClick={handleCropSave} className="flex-1 flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg transition-colors">
-                <Check size={18}/> Crop & Save
-              </button>
+              <button onClick={handleUseOriginal} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 rounded-xl transition-colors border border-gray-200">Skip & Use Original</button>
+              <button onClick={handleCropSave} className="flex-1 flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg transition-colors"><Check size={18}/> Crop & Save</button>
             </div>
           </div>
         </div>
@@ -307,12 +287,12 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
 
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
         <h3 className="font-bold text-indigo-900 mb-1">Smart Document Upload</h3>
-        <p className="text-xs text-indigo-700">Select a file to adjust it perfectly. System will auto-remove background and convert to PDF!</p>
+        <p className="text-xs text-indigo-700">Upload documents safely. System will generate a perfect passport photo and PDF documents automatically.</p>
       </div>
 
       <div className="space-y-4">
         {[
-          { id: 'profilePic', label: 'Passport Photo *', sub: 'AI will remove background & add Name/Date', icon: <ImageIcon size={20}/>, accept: 'image/*' },
+          { id: 'profilePic', label: 'Passport Photo *', sub: 'AI will add White Background automatically', icon: <ImageIcon size={20}/>, accept: 'image/*' },
           { id: 'signature', label: 'Signature *', sub: 'Crop your sign. Auto compressed', icon: <FileText size={20}/>, accept: 'image/*' },
           { id: 'tenthMarkSheet', label: '10th Marksheet *', sub: 'Image/PDF (Auto converts to PDF)', icon: <FileText size={20}/>, accept: 'image/*,application/pdf' },
           { id: 'domicile', label: 'Niwash Praman Patra *', sub: 'Image/PDF', icon: <FileText size={20}/>, accept: 'image/*,application/pdf' },
