@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-// 🌟 NAYA: RotateCw icon yahan bhi import kiya 🌟
-import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw } from 'lucide-react';
+// 🌟 NAYA: 'Menu' icon import kiya Mobile Navigation ke liye 🌟
+import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -20,6 +20,8 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 NAYA STATE: Mobile menu toggle ke liye
+  
   const [bookings, setBookings] = useState([]);
   const [campRequests, setCampRequests] = useState([]); 
   const [missingRequests, setMissingRequests] = useState([]); 
@@ -322,14 +324,12 @@ export default function AdminPanel() {
     }
   };
 
-  // 🌟 NAYA: ADMIN REPLACE ROTATE FUNCTION 🌟
   const handleReplaceRotate = () => {
     const image = replaceImgRef.current;
     if (!image) return;
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-
     canvas.width = image.naturalHeight;
     canvas.height = image.naturalWidth;
     ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -456,36 +456,45 @@ export default function AdminPanel() {
   if (!isAuthenticated) { return <AdminLogin password={password} setPassword={setPassword} error={error} handleLogin={handleLogin} />; }
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    // 🌟 NAYA: Flex column on mobile, row on desktop 🌟
+    <div className="h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden">
       
+      {/* 🌟 NAYA: MOBILE TOP HEADER (Sirf Mobile par dikhega) 🌟 */}
+      <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-md z-30 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xs">EF</div>
+          <span className="text-xl font-extrabold italic tracking-tight">EduFill Admin</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1 focus:outline-none hover:bg-gray-800 rounded-md transition-colors">
+          {isMobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
+        </button>
+      </div>
+
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutesList} />
 
-      {/* 🌟 ADMIN REPLACE CROPPER MODAL (WITH ROTATE BUTTON) 🌟 */}
       {replaceCropModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh] shadow-2xl">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-white z-10 shrink-0">
+            <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-100 bg-white z-10 shrink-0">
               <div>
-                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><CropIcon size={20}/> Adjust & Replace Image</h3>
-                <p className="text-xs text-gray-500 mt-1">Rotate or crop properly before the system processes it.</p>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2"><CropIcon size={20}/> Adjust Image</h3>
               </div>
               <button onClick={() => setReplaceCropModalOpen(false)} className="text-gray-400 hover:text-red-500"><X size={24}/></button>
             </div>
             
-            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center items-start">
+            <div className="flex-1 overflow-auto bg-gray-100 p-2 sm:p-4 flex justify-center items-start">
               <ReactCrop crop={replaceCrop} onChange={(_, percentCrop) => setReplaceCrop(percentCrop)} onComplete={(c) => setReplaceCompletedCrop(c)}>
                 <img ref={replaceImgRef} src={replaceImgSrc} onLoad={onReplaceImageLoad} alt="Crop preview" className="max-w-full h-auto shadow-md" style={{ maxHeight: '50vh', objectFit: 'contain' }}/>
               </ReactCrop>
             </div>
 
-            {/* 🌟 NAYA: ROTATE BUTTON UI 🌟 */}
-            <div className="p-4 border-t border-gray-100 bg-white z-10 shrink-0 flex flex-col sm:flex-row gap-3">
-              <button onClick={handleReplaceRotate} className="flex-1 flex justify-center items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3.5 rounded-xl transition-colors border border-blue-200">
+            <div className="p-4 sm:p-5 border-t border-gray-100 bg-white z-10 shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button onClick={handleReplaceRotate} className="flex-1 flex justify-center items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 rounded-xl transition-colors border border-blue-200">
                 <RotateCw size={18}/> Rotate 90°
               </button>
-              <button onClick={handleReplaceUseOriginal} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 rounded-xl transition-colors border border-gray-200">Skip Cropping</button>
-              <button onClick={handleReplaceCropSave} className="flex-1 flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg transition-colors"><Check size={18}/> Crop & Process</button>
+              <button onClick={handleReplaceUseOriginal} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors border border-gray-200">Skip Crop</button>
+              <button onClick={handleReplaceCropSave} className="flex-1 flex justify-center items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg transition-colors"><Check size={18}/> Process</button>
             </div>
           </div>
         </div>
@@ -493,9 +502,9 @@ export default function AdminPanel() {
 
       {isUploadModalOpen && uploadTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative my-8">
-            <button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors z-10"><X size={20}/></button>
-            <h2 className="text-xl font-bold text-gray-800 mb-6 border-b border-gray-100 pb-4 flex items-center gap-2"><Upload size={22} className="text-indigo-500"/> Upload Docs: {uploadTarget.fullName}</h2>
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-2xl shadow-2xl relative my-8">
+            <button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:text-red-500 transition-colors z-10"><X size={20}/></button>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-6 border-b border-gray-100 pb-4 pr-8"><Upload className="inline text-indigo-500 mr-2" size={20}/>Upload Docs</h2>
             <DocumentUploader studentId={uploadTarget.id} collectionName={uploadTarget.collectionName} studentName={uploadTarget.fullName} category={uploadTarget.category} onComplete={() => { alert("Documents uploaded and linked successfully!"); setIsUploadModalOpen(false); setUploadTarget(null); }} />
           </div>
         </div>
@@ -503,9 +512,9 @@ export default function AdminPanel() {
 
       {docsModalOpen && selectedStudent && selectedStudent.documents && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-lg shadow-2xl">
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText size={24} className="text-blue-600"/> Documents Manager</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2"><FileText size={24} className="text-blue-600"/> Documents Manager</h3>
               <button onClick={() => setDocsModalOpen(false)} className="bg-gray-100 p-2 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors"><X size={20}/></button>
             </div>
             <p className="text-sm text-gray-500 mb-4 font-medium">Student: <span className="text-gray-900 font-bold">{selectedStudent.fullName}</span></p>
@@ -522,11 +531,13 @@ export default function AdminPanel() {
                 if (!docUrl) return null; 
                 
                 return (
-                  <div key={docItem.key} className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                  <div key={docItem.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
                     <span className="font-bold text-blue-800 text-sm">{docItem.label}</span>
-                    <div className="flex gap-2 items-center">
-                      <a href={docUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition-all">View</a>
-                      <a href={getDownloadUrl(docUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">DL</a>
+                    <div className="flex gap-2 items-center w-full sm:w-auto justify-between sm:justify-end">
+                      <div className="flex gap-2">
+                        <a href={docUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition-all">View</a>
+                        <a href={getDownloadUrl(docUrl)} download className="px-3 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold shadow-sm transition-all">DL</a>
+                      </div>
                       
                       <label className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ${replacingDoc === docItem.key ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
                         {replacingDoc === docItem.key ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
@@ -543,26 +554,36 @@ export default function AdminPanel() {
         </div>
       )}
 
-      <aside className="w-64 bg-gray-900 text-white hidden md:flex flex-col flex-shrink-0 z-20">
-        <div className="p-6 border-b border-gray-800 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl">EF</div>
-          <span className="text-2xl font-extrabold italic">EduFill</span>
+      {/* 🌟 NAYA: MOBILE OVERLAY FOR SIDEBAR 🌟 */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
+      {/* 🌟 NAYA: RESPONSIVE SIDEBAR 🌟 */}
+      <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50 w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 shadow-2xl md:shadow-none`}>
+        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl">EF</div>
+            <span className="text-2xl font-extrabold italic">EduFill</span>
+          </div>
+          {/* Mobile close button inside sidebar */}
+          <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24}/></button>
         </div>
         
-        <nav className="flex-1 p-4 space-y-3 mt-4">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><LayoutDashboard size={20}/> Dashboard</button>
+        <nav className="flex-1 p-4 space-y-3 mt-2 overflow-y-auto">
+          <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><LayoutDashboard size={20}/> Dashboard</button>
           
-          <button onClick={() => setActiveTab('missing')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+          <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <div className="flex items-center gap-3"><FileWarning size={20}/> Missing Items</div>
             {pendingMissingCount > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{pendingMissingCount}</span>)}
           </button>
 
-          <button onClick={() => setActiveTab('camps')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+          <button onClick={() => { setActiveTab('camps'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <div className="flex items-center gap-3"><Building size={20}/> Camp Requests</div>
             {campRequests.filter(c => c.status === 'New Request').length > 0 && (<span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{campRequests.filter(c => c.status === 'New Request').length} New</span>)}
           </button>
 
-          <button onClick={() => setActiveTab('liveController')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'liveController' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Settings size={20}/> Form Settings</button>
+          <button onClick={() => { setActiveTab('liveController'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'liveController' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Settings size={20}/> Form Settings</button>
         </nav>
 
         <div className="p-4 border-t border-gray-800">
@@ -570,59 +591,79 @@ export default function AdminPanel() {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 lg:p-10 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto">
+        
         {activeTab === 'dashboard' && (
            <div className="animate-in fade-in duration-500">
-             <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-8">
-              <div><h1 className="text-3xl font-extrabold text-gray-900">Database Overview</h1><p className="text-gray-500 mt-1">Real-time student booking records</p></div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100"><Radio size={16} className="text-emerald-500 animate-pulse" /><span className="text-sm font-bold text-emerald-700">Live Sync Active</span></div>
-                <button onClick={() => setIsWalkInModalOpen(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full shadow-md transition-all font-bold text-sm"><PlusCircle size={16} /> Add Walk-in</button>
-                <button onClick={exportToExcel} className="flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-5 py-2 rounded-full shadow-md transition-all font-bold text-sm"><Download size={16} /> Export Data</button>
+             {/* 🌟 Responsive Header 🌟 */}
+             <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-8">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Database Overview</h1>
+                <p className="text-sm md:text-base text-gray-500 mt-1">Real-time student booking records</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-emerald-100"><Radio size={14} className="text-emerald-500 animate-pulse" /><span className="text-xs md:text-sm font-bold text-emerald-700">Live Sync</span></div>
+                <button onClick={() => setIsWalkInModalOpen(true)} className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 md:px-5 md:py-2 rounded-full shadow-md transition-all font-bold text-xs md:text-sm"><PlusCircle size={14} /> Add Walk-in</button>
+                <button onClick={exportToExcel} className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-white px-3 py-2 md:px-5 md:py-2 rounded-full shadow-md transition-all font-bold text-xs md:text-sm"><Download size={14} /> Export</button>
               </div>
             </header>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-8 flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
+            {/* Responsive Filters */}
+            <div className="bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 md:mb-8 flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 text-gray-500 font-bold mr-2 text-sm"><Filter size={16} /> Filters:</div>
+                <div className="hidden sm:flex items-center gap-1 text-gray-500 font-bold mr-2 text-sm"><Filter size={16} /> Filters:</div>
                 {['All', 'Ribosome', 'Unacademy', 'Others'].map(category => (
-                  <button key={category} onClick={() => setActiveFilter(category)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${activeFilter === category ? 'bg-blue-900 text-white shadow-md' : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
+                  <button key={category} onClick={() => setActiveFilter(category)} className={`px-3 py-1.5 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-bold transition-all ${activeFilter === category ? 'bg-blue-900 text-white shadow-md' : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
                     {category} {category === 'All' && `(${bookings.length})`}
                   </button>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                <div className="relative flex-1 xl:w-64">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full xl:w-auto">
+                <div className="relative flex-1 min-w-[200px] xl:w-64">
                   <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Search Application, Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"/>
+                  <input type="text" placeholder="Search Name/App No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"/>
                 </div>
                 <div className="relative">
-                  <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-600 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all cursor-pointer"/>
+                  <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-600 rounded-full px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all cursor-pointer"/>
                 </div>
                 {(searchQuery || dateFilter || activeFilter !== 'All') && (
-                  <button onClick={clearFilters} className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-full transition-all"><X size={14} /> Clear</button>
+                  <button onClick={clearFilters} className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-2 rounded-full transition-all"><X size={14} /> Clear</button>
                 )}
               </div>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div className="bg-blue-100 p-3 rounded-xl text-blue-600"><Users size={24}/></div><div><p className="text-xs text-gray-500 font-bold uppercase">Total Leads</p><p className="text-2xl font-black text-gray-900">{filteredBookings.length}</p></div></div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div className="bg-amber-100 p-3 rounded-xl text-amber-600"><Clock size={24}/></div><div><p className="text-xs text-gray-500 font-bold uppercase">Pending</p><p className="text-2xl font-black text-gray-900">{pendingCount}</p></div></div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div className="bg-emerald-100 p-3 rounded-xl text-emerald-600"><CheckCircle size={24}/></div><div><p className="text-xs text-gray-500 font-bold uppercase">Completed</p><p className="text-2xl font-black text-gray-900">{completedCount}</p></div></div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div className="bg-purple-100 p-3 rounded-xl text-purple-600"><IndianRupee size={24}/></div><div><p className="text-xs text-gray-500 font-bold uppercase">Revenue</p><p className="text-2xl font-black text-gray-900">₹{totalPaidAmount}</p></div></div>
+            {/* 🌟 NAYA: RESPONSIVE GRID (Mobile pe 2 box ek line me, desktop pe 4) 🌟 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+              <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                <div className="bg-blue-100 p-2 md:p-3 rounded-xl text-blue-600"><Users size={20} className="md:w-6 md:h-6"/></div>
+                <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Total Leads</p><p className="text-xl md:text-2xl font-black text-gray-900">{filteredBookings.length}</p></div>
+              </div>
+              <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                <div className="bg-amber-100 p-2 md:p-3 rounded-xl text-amber-600"><Clock size={20} className="md:w-6 md:h-6"/></div>
+                <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Pending</p><p className="text-xl md:text-2xl font-black text-gray-900">{pendingCount}</p></div>
+              </div>
+              <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                <div className="bg-emerald-100 p-2 md:p-3 rounded-xl text-emerald-600"><CheckCircle size={20} className="md:w-6 md:h-6"/></div>
+                <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Completed</p><p className="text-xl md:text-2xl font-black text-gray-900">{completedCount}</p></div>
+              </div>
+              <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                <div className="bg-purple-100 p-2 md:p-3 rounded-xl text-purple-600"><IndianRupee size={20} className="md:w-6 md:h-6"/></div>
+                <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Revenue</p><p className="text-xl md:text-2xl font-black text-gray-900">₹{totalPaidAmount}</p></div>
+              </div>
             </div>
 
+            {/* 🌟 NAYA: SWIPEABLE TABLE (overflow-x-auto for touch devices) 🌟 */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gray-50"><h2 className="text-xl font-bold text-gray-800">Application Records</h2></div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50"><h2 className="text-lg md:text-xl font-bold text-gray-800">Application Records</h2></div>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
-                    <tr className="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider border-b border-gray-100">
-                      <th className="p-4 font-semibold">Student Info</th>
-                      <th className="p-4 font-semibold">Exam details</th>
-                      <th className="p-4 font-semibold">Appointment</th>
-                      <th className="p-4 font-semibold w-48">Status Tracker</th>
-                      <th className="p-4 font-semibold text-right">Actions</th>
+                    <tr className="bg-gray-50 text-gray-500 text-xs md:text-sm uppercase tracking-wider border-b border-gray-100">
+                      <th className="p-3 md:p-4 font-semibold whitespace-nowrap">Student Info</th>
+                      <th className="p-3 md:p-4 font-semibold whitespace-nowrap">Exam details</th>
+                      <th className="p-3 md:p-4 font-semibold whitespace-nowrap">Appointment</th>
+                      <th className="p-3 md:p-4 font-semibold whitespace-nowrap w-48">Status Tracker</th>
+                      <th className="p-3 md:p-4 font-semibold whitespace-nowrap text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -633,58 +674,58 @@ export default function AdminPanel() {
                     ) : (
                       filteredBookings.map((booking) => (
                         <tr key={booking.id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
-                          <td className="p-4 align-top">
+                          <td className="p-3 md:p-4 align-top">
                             <p className="font-bold text-gray-900">{booking.fullName}</p>
-                            <p className="text-sm text-gray-500">{booking.mobile}</p>
-                            <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded mt-1 inline-block font-bold">{booking.category}</span>
+                            <p className="text-xs md:text-sm text-gray-500">{booking.mobile}</p>
+                            <span className="text-[10px] md:text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded mt-1 inline-block font-bold">{booking.category}</span>
                           </td>
-                          <td className="p-4 align-top">
+                          <td className="p-3 md:p-4 align-top">
                             <p className="font-bold text-blue-900">{booking.exam}</p>
-                            <p className="text-sm text-gray-600">{booking.institute}</p>
-                            {booking.batchName && <p className="text-xs text-emerald-600 font-medium mt-1">Batch: {booking.batchName}</p>}
+                            <p className="text-xs md:text-sm text-gray-600">{booking.institute}</p>
+                            {booking.batchName && <p className="text-[10px] md:text-xs text-emerald-600 font-medium mt-1">Batch: {booking.batchName}</p>}
                           </td>
-                          <td className="p-4 align-top">
-                            <p className="font-bold text-gray-800">{booking.slotDate}</p>
-                            <p className="text-sm text-gray-500 flex items-center gap-1 mb-1"><Clock size={14}/> {booking.slotTime}</p>
+                          <td className="p-3 md:p-4 align-top">
+                            <p className="font-bold text-gray-800 text-sm">{booking.slotDate}</p>
+                            <p className="text-xs md:text-sm text-gray-500 flex items-center gap-1 mb-1"><Clock size={12}/> {booking.slotTime}</p>
                           </td>
-                          <td className="p-4 align-top">
-                            <p className="font-black text-indigo-600 text-sm mb-2">{booking.tokenNumber}</p>
+                          <td className="p-3 md:p-4 align-top">
+                            <p className="font-black text-indigo-600 text-xs md:text-sm mb-2">{booking.tokenNumber}</p>
                             <div className="flex gap-2 items-center mb-2 flex-wrap">
-                              <span className={`px-2 py-1 rounded text-[11px] font-bold ${booking.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status || 'Pending'}</span>
+                              <span className={`px-2 py-1 rounded text-[10px] md:text-[11px] font-bold ${booking.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status || 'Pending'}</span>
                               {booking.paymentStatus === 'Paid' ? (
                                 <div className="flex items-center gap-1">
-                                  <span className="px-2 py-1 rounded text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 flex items-center gap-1"><CheckCircle size={10}/> ₹{booking.paymentAmount}</span>
+                                  <span className="px-2 py-1 rounded text-[10px] md:text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 flex items-center gap-1"><CheckCircle size={10}/> ₹{booking.paymentAmount}</span>
                                   <button onClick={() => openPaymentModal(booking)} className="text-gray-400 hover:text-blue-500 p-1 bg-gray-100 rounded" title="Edit Payment Data"><Edit size={12} /></button>
                                 </div>
                               ) : (
-                                <button onClick={() => openPaymentModal(booking)} className="px-2 py-1 rounded text-[11px] font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">Payment Due</button>
+                                <button onClick={() => openPaymentModal(booking)} className="px-2 py-1 rounded text-[10px] md:text-[11px] font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">Payment Due</button>
                               )}
                             </div>
 
                             <div className="flex flex-col gap-2 mt-2">
                               <button onClick={() => togglePhotoDeliveryStatus(booking.id, booking.collectionName, booking.photoDelivered)} className={`flex w-fit items-center gap-1 px-2 py-1 rounded text-[10px] font-bold transition-all border ${booking.photoDelivered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                                <Camera size={12}/> {booking.photoDelivered ? 'Photos Delivered ✅' : 'Give Photos 📸'}
+                                <Camera size={12}/> {booking.photoDelivered ? 'Photos ✅' : 'Give Photos'}
                               </button>
                               <button onClick={() => toggleConfirmationStatus(booking.id, booking.collectionName, booking.confirmationDelivered)} className={`flex w-fit items-center gap-1 px-2 py-1 rounded text-[10px] font-bold transition-all border ${booking.confirmationDelivered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                                <Printer size={12}/> {booking.confirmationDelivered ? 'Confirmation Given ✅' : 'Give Confirmation 📄'}
+                                <Printer size={12}/> {booking.confirmationDelivered ? 'Confirm ✅' : 'Give Confirm'}
                               </button>
                             </div>
                             {booking.applicationNumber && booking.applicationNumber !== 'N/A' && (
-                              <p className="text-[11px] font-bold text-gray-600 bg-gray-200 px-2 py-1 rounded inline-block mt-2">App No: {booking.applicationNumber}</p>
+                              <p className="text-[10px] md:text-[11px] font-bold text-gray-600 bg-gray-200 px-2 py-1 rounded inline-block mt-2">App No: {booking.applicationNumber}</p>
                             )}
                           </td>
-                          <td className="p-4 align-top">
-                            <div className="flex items-center justify-end gap-2">
+                          <td className="p-3 md:p-4 align-top">
+                            <div className="flex items-center justify-end gap-1 md:gap-2">
                               {booking.documents ? (
-                                <button onClick={() => { setSelectedStudent(booking); setDocsModalOpen(true); }} className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-100"><FileText size={18}/></button>
+                                <button onClick={() => { setSelectedStudent(booking); setDocsModalOpen(true); }} className="flex items-center justify-center p-1.5 md:p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-100"><FileText size={16}/></button>
                               ) : (
-                                <button onClick={() => { setUploadTarget(booking); setIsUploadModalOpen(true); }} className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg transition-all shadow-sm"><Upload size={14}/> Upload</button>
+                                <button onClick={() => { setUploadTarget(booking); setIsUploadModalOpen(true); }} className="flex items-center gap-1 px-2 py-1.5 md:px-3 md:py-2 text-[10px] md:text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg transition-all shadow-sm"><Upload size={12}/> Upload</button>
                               )}
-                              <a href={`https://wa.me/91${booking.mobile}?text=Hello ${booking.fullName}...`} target="_blank" rel="noreferrer" className="flex items-center justify-center p-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white rounded-lg transition-colors border border-green-100"><MessageCircle size={18}/></a>
+                              <a href={`https://wa.me/91${booking.mobile}?text=Hello ${booking.fullName}...`} target="_blank" rel="noreferrer" className="flex items-center justify-center p-1.5 md:p-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white rounded-lg transition-colors border border-green-100"><MessageCircle size={16}/></a>
                               {booking.status !== 'Completed' && (
-                                <button onClick={() => markAsCompleted(booking.id, booking.collectionName)} className="flex items-center justify-center p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors border border-emerald-100"><CheckCircle size={18}/></button>
+                                <button onClick={() => markAsCompleted(booking.id, booking.collectionName)} className="flex items-center justify-center p-1.5 md:p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors border border-emerald-100"><CheckCircle size={16}/></button>
                               )}
-                              <button onClick={() => deleteBooking(booking.id, booking.collectionName)} className="flex items-center justify-center p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100"><Trash2 size={18}/></button>
+                              <button onClick={() => deleteBooking(booking.id, booking.collectionName)} className="flex items-center justify-center p-1.5 md:p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100"><Trash2 size={16}/></button>
                             </div>
                           </td>
                         </tr>
@@ -697,30 +738,27 @@ export default function AdminPanel() {
            </div>
         )}
 
-        {/* 🌟 MISSING REQUESTS TAB 🌟 */}
         {activeTab === 'missing' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-            <header className="mb-10 flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-extrabold text-gray-900">Missing Items Tracker</h1>
-                <p className="text-gray-500 mt-1">Manage requests submitted by students for missing photos or confirmation pages</p>
-              </div>
+            <header className="mb-6 md:mb-10">
+              <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Missing Items Tracker</h1>
+              <p className="text-sm md:text-base text-gray-500 mt-1">Manage requests submitted by students.</p>
             </header>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
-                <AlertTriangle className="text-red-500" size={24} />
-                <h2 className="text-xl font-bold text-gray-800">Student Reports</h2>
+              <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                <AlertTriangle className="text-red-500" size={20} />
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">Student Reports</h2>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
-                    <tr className="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider border-b border-gray-100">
-                      <th className="p-4 font-semibold">Student Name & Contact</th>
-                      <th className="p-4 font-semibold">Reported Missing Items</th>
-                      <th className="p-4 font-semibold">Date Reported</th>
-                      <th className="p-4 font-semibold">Status</th>
-                      <th className="p-4 font-semibold text-right">Actions</th>
+                    <tr className="bg-gray-50 text-gray-500 text-xs md:text-sm uppercase tracking-wider border-b border-gray-100">
+                      <th className="p-3 md:p-4 font-semibold">Student Name & Contact</th>
+                      <th className="p-3 md:p-4 font-semibold">Reported Missing Items</th>
+                      <th className="p-3 md:p-4 font-semibold">Date Reported</th>
+                      <th className="p-3 md:p-4 font-semibold">Status</th>
+                      <th className="p-3 md:p-4 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -729,38 +767,38 @@ export default function AdminPanel() {
                     ) : (
                       missingRequests.map((req) => (
                         <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="p-4">
-                            <p className="font-bold text-gray-900 text-lg">{req.studentName}</p>
-                            <p className="text-sm text-gray-600 flex items-center gap-1 mt-1"><MessageCircle size={14}/> {req.mobile}</p>
+                          <td className="p-3 md:p-4">
+                            <p className="font-bold text-gray-900 text-base md:text-lg">{req.studentName}</p>
+                            <p className="text-xs md:text-sm text-gray-600 flex items-center gap-1 mt-1"><MessageCircle size={12}/> {req.mobile}</p>
                           </td>
-                          <td className="p-4">
+                          <td className="p-3 md:p-4">
                             <div className="flex flex-wrap gap-2">
                               {req.missingItems && req.missingItems.map((item, idx) => (
-                                <span key={idx} className="bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                                <span key={idx} className="bg-red-50 text-red-700 border border-red-200 px-2 py-1 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold shadow-sm whitespace-nowrap">
                                   {item}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="p-4 text-sm text-gray-500 font-medium">
+                          <td className="p-3 md:p-4 text-xs md:text-sm text-gray-500 font-medium">
                             {formatTime(req.timestamp)}
                           </td>
-                          <td className="p-4">
+                          <td className="p-3 md:p-4">
                             {req.status === 'Pending' ? (
-                              <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse inline-block">Needs Attention</span>
+                              <span className="bg-amber-100 text-amber-700 px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold animate-pulse inline-block whitespace-nowrap">Needs Attention</span>
                             ) : (
-                              <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle size={14}/> Resolved</span>
+                              <span className="bg-emerald-100 text-emerald-700 px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold flex items-center gap-1 w-fit whitespace-nowrap"><CheckCircle size={12}/> Resolved</span>
                             )}
                           </td>
-                          <td className="p-4 text-right">
+                          <td className="p-3 md:p-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               {req.status === 'Pending' && (
-                                <button onClick={() => resolveMissingRequest(req.id)} className="flex items-center gap-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm">
-                                  <Check size={14}/> Mark Printed
+                                <button onClick={() => resolveMissingRequest(req.id)} className="flex items-center gap-1 px-2 py-1.5 md:px-3 md:py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] md:text-xs font-bold transition-all shadow-sm whitespace-nowrap">
+                                  <Check size={12}/> Mark Printed
                                 </button>
                               )}
-                              <button onClick={() => deleteMissingRequest(req.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100">
-                                <Trash2 size={16}/>
+                              <button onClick={() => deleteMissingRequest(req.id)} className="p-1.5 md:p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100">
+                                <Trash2 size={14}/>
                               </button>
                             </div>
                           </td>
@@ -774,23 +812,22 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* TAB 3: CAMP REQUESTS */}
         {activeTab === 'camps' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-             <header className="mb-10"><h1 className="text-3xl font-extrabold text-gray-900">B2B Camp Inquiries</h1></header>
+             <header className="mb-6 md:mb-10"><h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">B2B Camp Inquiries</h1></header>
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gray-50"><h2 className="text-xl font-bold text-gray-800">Institute Leads Directory</h2></div>
+              <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50"><h2 className="text-lg md:text-xl font-bold text-gray-800">Institute Leads Directory</h2></div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead><tr className="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider border-b border-gray-100"><th className="p-4">Institute</th><th className="p-4">Contact</th><th className="p-4">Volume</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th></tr></thead>
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead><tr className="bg-gray-50 text-gray-500 text-xs md:text-sm uppercase tracking-wider border-b border-gray-100"><th className="p-3 md:p-4">Institute</th><th className="p-3 md:p-4">Contact</th><th className="p-3 md:p-4">Volume</th><th className="p-3 md:p-4">Status</th><th className="p-3 md:p-4 text-right">Actions</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {campRequests.map((camp) => (
                         <tr key={camp.id} className="hover:bg-gray-50">
-                          <td className="p-4"><p className="font-bold text-indigo-900 text-lg">{camp.instituteName}</p><p className="text-[10px] text-gray-400 mt-2">Date: {formatTime(camp.timestamp)}</p></td>
-                          <td className="p-4"><p className="font-bold">{camp.contactPerson}</p><p className="text-sm text-gray-600">{camp.mobile}</p></td>
-                          <td className="p-4"><span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold border border-blue-200">{camp.studentCount} Forms</span></td>
-                          <td className="p-4"><select value={camp.status || 'New Request'} onChange={(e) => updateCampStatus(camp.id, e.target.value)} className="text-sm font-bold rounded-lg px-2 py-1 outline-none border transition-colors cursor-pointer"><option value="New Request">New Lead</option><option value="Completed">Camp Executed</option></select></td>
-                          <td className="p-4 text-right"><button onClick={() => deleteCampRequest(camp.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><Trash2 size={18}/></button></td>
+                          <td className="p-3 md:p-4"><p className="font-bold text-indigo-900 text-base md:text-lg">{camp.instituteName}</p><p className="text-[10px] text-gray-400 mt-1">Date: {formatTime(camp.timestamp)}</p></td>
+                          <td className="p-3 md:p-4"><p className="font-bold text-sm md:text-base">{camp.contactPerson}</p><p className="text-xs md:text-sm text-gray-600">{camp.mobile}</p></td>
+                          <td className="p-3 md:p-4"><span className="bg-blue-50 text-blue-700 px-2 py-1 md:px-3 md:py-1 rounded-full text-[10px] md:text-sm font-bold border border-blue-200 whitespace-nowrap">{camp.studentCount} Forms</span></td>
+                          <td className="p-3 md:p-4"><select value={camp.status || 'New Request'} onChange={(e) => updateCampStatus(camp.id, e.target.value)} className="text-[10px] md:text-sm font-bold rounded-lg px-2 py-1 outline-none border transition-colors cursor-pointer"><option value="New Request">New Lead</option><option value="Completed">Camp Executed</option></select></td>
+                          <td className="p-3 md:p-4 text-right"><button onClick={() => deleteCampRequest(camp.id)} className="p-1.5 md:p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><Trash2 size={16}/></button></td>
                         </tr>
                       ))}
                   </tbody>
@@ -800,17 +837,16 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* TAB 4: LIVE CONTROLLER VIEW */}
         {activeTab === 'liveController' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-             <header className="mb-10"><h1 className="text-3xl font-extrabold text-gray-900">Platform Form Controls</h1></header>
-             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
-              <div className="space-y-5">
+             <header className="mb-6 md:mb-10"><h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Platform Form Controls</h1></header>
+             <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
+              <div className="space-y-4 md:space-y-5">
                 {['neet', 'jee', 'cuet'].map((examKey) => (
-                  <div key={examKey} className="flex items-center justify-between p-5 bg-gray-50 hover:bg-gray-100 transition-colors rounded-xl border border-gray-200">
-                    <div><p className="font-bold text-lg text-gray-800 uppercase tracking-wide">{examKey}</p></div>
-                    <button onClick={() => toggleExam(examKey)} className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${liveExams[examKey] ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                      <span className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${liveExams[examKey] ? 'translate-x-6' : 'translate-x-0'}`} />
+                  <div key={examKey} className="flex items-center justify-between p-4 md:p-5 bg-gray-50 hover:bg-gray-100 transition-colors rounded-xl border border-gray-200">
+                    <div><p className="font-bold text-base md:text-lg text-gray-800 uppercase tracking-wide">{examKey}</p></div>
+                    <button onClick={() => toggleExam(examKey)} className={`relative inline-flex h-7 w-12 md:h-8 md:w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${liveExams[examKey] ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                      <span className={`pointer-events-none inline-block h-6 w-6 md:h-7 md:w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${liveExams[examKey] ? 'translate-x-5 md:translate-x-6' : 'translate-x-0'}`} />
                     </button>
                   </div>
                 ))}
