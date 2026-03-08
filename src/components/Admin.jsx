@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-// 🌟 NAYA: 'Menu' icon import kiya Mobile Navigation ke liye 🌟
-import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu } from 'lucide-react';
+// 🌟 NAYA: 'Calendar' icon import kiya 🌟
+import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, Calendar } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -20,7 +20,7 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 NAYA STATE: Mobile menu toggle ke liye
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
   const [bookings, setBookings] = useState([]);
   const [campRequests, setCampRequests] = useState([]); 
@@ -456,10 +456,9 @@ export default function AdminPanel() {
   if (!isAuthenticated) { return <AdminLogin password={password} setPassword={setPassword} error={error} handleLogin={handleLogin} />; }
 
   return (
-    // 🌟 NAYA: Flex column on mobile, row on desktop 🌟
     <div className="h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden">
       
-      {/* 🌟 NAYA: MOBILE TOP HEADER (Sirf Mobile par dikhega) 🌟 */}
+      {/* MOBILE TOP HEADER */}
       <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-md z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xs">EF</div>
@@ -554,19 +553,16 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* 🌟 NAYA: MOBILE OVERLAY FOR SIDEBAR 🌟 */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
-      {/* 🌟 NAYA: RESPONSIVE SIDEBAR 🌟 */}
       <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50 w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 shadow-2xl md:shadow-none`}>
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl">EF</div>
             <span className="text-2xl font-extrabold italic">EduFill</span>
           </div>
-          {/* Mobile close button inside sidebar */}
           <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24}/></button>
         </div>
         
@@ -595,7 +591,6 @@ export default function AdminPanel() {
         
         {activeTab === 'dashboard' && (
            <div className="animate-in fade-in duration-500">
-             {/* 🌟 Responsive Header 🌟 */}
              <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-8">
               <div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Database Overview</h1>
@@ -608,7 +603,7 @@ export default function AdminPanel() {
               </div>
             </header>
 
-            {/* Responsive Filters */}
+            {/* 🌟 NAYA: CALENDAR ICON ADD KIYA DATE BOX MEIN 🌟 */}
             <div className="bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 md:mb-8 flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 text-gray-500 font-bold mr-2 text-sm"><Filter size={16} /> Filters:</div>
@@ -619,20 +614,31 @@ export default function AdminPanel() {
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full xl:w-auto">
-                <div className="relative flex-1 min-w-[200px] xl:w-64">
+                <div className="relative flex-1 min-w-[150px] xl:w-64">
                   <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <input type="text" placeholder="Search Name/App No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"/>
                 </div>
-                <div className="relative">
-                  <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-600 rounded-full px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all cursor-pointer"/>
+                
+                {/* DATE FILTER WITH CALENDAR TRICK */}
+                <div className="relative flex-1 min-w-[130px] xl:w-48">
+                  <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input 
+                    type={dateFilter ? "date" : "text"} 
+                    placeholder="Filter Date..."
+                    onFocus={(e) => e.target.type = 'date'}
+                    onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
+                    value={dateFilter} 
+                    onChange={(e) => setDateFilter(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-600 rounded-full pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
+                  />
                 </div>
+
                 {(searchQuery || dateFilter || activeFilter !== 'All') && (
-                  <button onClick={clearFilters} className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-2 rounded-full transition-all"><X size={14} /> Clear</button>
+                  <button onClick={clearFilters} className="flex items-center justify-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-full transition-all"><X size={14} /> Clear</button>
                 )}
               </div>
             </div>
 
-            {/* 🌟 NAYA: RESPONSIVE GRID (Mobile pe 2 box ek line me, desktop pe 4) 🌟 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
               <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
                 <div className="bg-blue-100 p-2 md:p-3 rounded-xl text-blue-600"><Users size={20} className="md:w-6 md:h-6"/></div>
@@ -652,7 +658,6 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            {/* 🌟 NAYA: SWIPEABLE TABLE (overflow-x-auto for touch devices) 🌟 */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50"><h2 className="text-lg md:text-xl font-bold text-gray-800">Application Records</h2></div>
               <div className="overflow-x-auto w-full">
