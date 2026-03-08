@@ -93,17 +93,15 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     }, 'image/jpeg', 1.0);
   };
 
-  // --- 100% PERFECT PASSPORT GENERATOR WITH REMOVE.BG API ---
+  // --- 100% PERFECT PASSPORT GENERATOR (WITH AUTO ENHANCE) ---
   const processPassportPhoto = async (croppedBlob, name) => {
     let finalBlobToProcess = croppedBlob;
 
     try {
-      // 👇 AAPKI LIVE API KEY 👇
       const apiKey = "navkJvJVi2bg4G2bTWLJDWva"; 
 
       if (apiKey) {
         setProgressText('AI is removing background instantly...');
-        // Thoda compress karke bhejenge taaki internet slow ho tab bhi fast upload ho
         const smallBlob = await imageCompression(croppedBlob, { maxSizeMB: 2, maxWidthOrHeight: 1000 });
         
         const formData = new FormData();
@@ -131,15 +129,15 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     const ctx = canvas.getContext('2d');
 
     const finalWidth = 413; const finalHeight = 531; const textAreaHeight = 85;
-    const photoHeight = finalHeight - textAreaHeight; // 446px for photo
+    const photoHeight = finalHeight - textAreaHeight; 
     
     canvas.width = finalWidth; canvas.height = finalHeight; 
     
-    // 1. Pura Canvas Ekdum White Karein
+    // 1. Fill White Background
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 2. 🚨 CLIPPING MASK: Photo ko Name patti ke piche aane se rokna 🚨
+    // 2. Clipping Mask
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, finalWidth, photoHeight); 
@@ -148,21 +146,27 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     const scale = Math.max(finalWidth / imageBmp.width, photoHeight / imageBmp.height);
     const x = (finalWidth / 2) - (imageBmp.width / 2) * scale;
     const y = (photoHeight / 2) - (imageBmp.height / 2) * scale;
+    
+    // 🌟 MAGIC STUDIO ENHANCER (Safe & Natural) 🌟
+    // Ye line photo ko Clean, Clear aur Vibrant banati hai bina usko kharab kiye
+    ctx.filter = 'contrast(105%) brightness(102%) saturate(110%)';
+    
     ctx.drawImage(imageBmp, x, y, imageBmp.width * scale, imageBmp.height * scale);
 
-    ctx.restore(); // Mask hataya taaki border/text aa sake
+    ctx.restore(); // Mask hataya
+    ctx.filter = 'none'; // Filter reset (taaki border aur text par effect na aaye)
 
-    // 3. Name/Date area ko fir se perfectly white paint karein
+    // 3. Name area ko white paint karein
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, photoHeight, finalWidth, textAreaHeight);
     
-    // 4. Perfect Black Borders
+    // 4. Black Borders
     ctx.strokeStyle = '#000000'; 
     ctx.lineWidth = 4; 
-    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4); // Outer
+    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4); 
     ctx.beginPath();
     ctx.moveTo(0, photoHeight);
-    ctx.lineTo(finalWidth, photoHeight); // Divider
+    ctx.lineTo(finalWidth, photoHeight); 
     ctx.stroke();
 
     // 5. Name & Date Print
@@ -177,6 +181,7 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     ctx.fillText(safeName, finalWidth / 2, photoHeight + 35);
     ctx.font = 'bold 20px Arial'; ctx.fillText(dateStr, finalWidth / 2, photoHeight + 65);
 
+    // 6. Max Quality Output
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
     return await imageCompression(new File([blob], 'profile.jpg', { type: 'image/jpeg' }), { maxSizeMB: 0.1, maxWidthOrHeight: 800, useWebWorker: true });
   };
@@ -192,10 +197,14 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
     
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d');
+    
+    // Docs ko bhi thoda clear (contrast) kar denge taaki PDF achhi bane
+    ctx.filter = 'contrast(102%)';
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
     ctx.drawImage(imageBmp, 0, 0, width, height);
+    ctx.filter = 'none';
     
-    const imgData = canvas.toDataURL('image/jpeg', 0.7); 
+    const imgData = canvas.toDataURL('image/jpeg', 0.8); 
     const pdf = new jsPDF({ orientation: width > height ? 'l' : 'p', unit: 'px', format: [width, height] });
     pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
     const pdfBlob = pdf.output('blob');
@@ -287,12 +296,12 @@ const DocumentUploader = ({ studentId, collectionName, studentName, category, on
 
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6">
         <h3 className="font-bold text-indigo-900 mb-1">Smart Document Upload</h3>
-        <p className="text-xs text-indigo-700">Upload documents safely. System will generate a perfect passport photo and PDF documents automatically.</p>
+        <p className="text-xs text-indigo-700">Upload documents safely. System will enhance photo, remove background and generate PDF automatically.</p>
       </div>
 
       <div className="space-y-4">
         {[
-          { id: 'profilePic', label: 'Passport Photo *', sub: 'AI will add White Background automatically', icon: <ImageIcon size={20}/>, accept: 'image/*' },
+          { id: 'profilePic', label: 'Passport Photo *', sub: 'Auto-Enhanced & White Background', icon: <ImageIcon size={20}/>, accept: 'image/*' },
           { id: 'signature', label: 'Signature *', sub: 'Crop your sign. Auto compressed', icon: <FileText size={20}/>, accept: 'image/*' },
           { id: 'tenthMarkSheet', label: '10th Marksheet *', sub: 'Image/PDF (Auto converts to PDF)', icon: <FileText size={20}/>, accept: 'image/*,application/pdf' },
           { id: 'domicile', label: 'Niwash Praman Patra *', sub: 'Image/PDF', icon: <FileText size={20}/>, accept: 'image/*,application/pdf' },
