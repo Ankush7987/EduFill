@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-// 🌟 NAYA: Upload aur PlusCircle icons import kiye
 import { UserCircle, Lock, Loader2, LogOut, CheckCircle, Clock, FileText, MessageCircle, X, Check, Camera, Printer, Edit, IndianRupee, Upload, PlusCircle } from 'lucide-react';
 import PaymentModal from './admin/PaymentModal';
-// 🌟 NAYA: WalkIn aur DocumentUploader Import Kiye
 import WalkInModal from './admin/WalkInModal';
 import DocumentUploader from '../components/DocumentUploader';
 
@@ -19,16 +17,13 @@ export default function AgentPanel() {
   const [assignedStudents, setAssignedStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Docs Modal State
   const [docsModalOpen, setDocsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // PAYMENT MODAL STATE
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentData, setPaymentData] = useState({ id: '', colName: '', amount: '', method: 'Online' });
   const [savingPayment, setSavingPayment] = useState(false);
 
-  // 🌟 NAYA: WALK-IN & UPLOAD STATES 🌟
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
 
@@ -37,7 +32,6 @@ export default function AgentPanel() {
   const [savingWalkIn, setSavingWalkIn] = useState(false);
   const [approvedInstitutes, setApprovedInstitutes] = useState([]);
 
-  // --- LOGIN LOGIC ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoggingIn(true);
@@ -67,11 +61,9 @@ export default function AgentPanel() {
     }
   };
 
-  // --- FETCH ASSIGNED STUDENTS & INSTITUTES ---
   useEffect(() => {
     if (!isAuthenticated || !agentData) return;
 
-    // Fetch Students
     const collectionsToFetch = ['Ribosome_Students', 'Unacademy_Students', 'Other_Students'];
     let allData = { Ribosome_Students: [], Unacademy_Students: [], Other_Students: [] };
     const unsubBookings = [];
@@ -91,7 +83,6 @@ export default function AgentPanel() {
       unsubBookings.push(unsub);
     });
 
-    // Fetch Approved Institutes for Walk-in Form
     const qCamps = query(collection(db, "Camp_Requests"), where("status", "==", "Completed"));
     const unsubCamps = onSnapshot(qCamps, (snapshot) => {
       const instList = [];
@@ -103,7 +94,6 @@ export default function AgentPanel() {
     return () => { unsubBookings.forEach(unsub => unsub()); unsubCamps(); };
   }, [isAuthenticated, agentData]);
 
-  // 🌟 NAYA: WALK-IN FUNCTIONS 🌟
   const handleWalkInChange = (e) => setWalkInForm({ ...walkInForm, [e.target.name]: e.target.value });
   const generateToken = () => "EDU-" + Math.floor(100000 + Math.random() * 900000);
 
@@ -114,7 +104,6 @@ export default function AgentPanel() {
       if (walkInForm.institute === "Ribosome Institute") collectionName = "Ribosome_Students";
       else if (walkInForm.institute === "Unacademy") collectionName = "Unacademy_Students";
 
-      // 🌟 AGENT NE ADD KIYA TOH USI KO ASSIGN HOGA 🌟
       const newDocRef = await addDoc(collection(db, collectionName), { 
         ...walkInForm, 
         tokenNumber: generateToken(), 
@@ -122,11 +111,10 @@ export default function AgentPanel() {
         paymentStatus: 'Due', 
         photoDelivered: false, 
         confirmationDelivered: false, 
-        assignedTo: agentData.name, // Direct assign to this agent
+        assignedTo: agentData.name, 
         timestamp: serverTimestamp() 
       });
 
-      // Update agent's count
       await updateDoc(doc(db, "Employees", agentData.id), {
         assignedCount: (agentData.assignedCount || 0) + 1
       });
@@ -204,9 +192,13 @@ export default function AgentPanel() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden">
           <div className="bg-indigo-600 p-8 text-center text-white">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <span className="text-2xl font-black text-indigo-600">EF</span>
+            
+            {/* 🌟 NAYA: LOGIN SCREEN CSS LOGO 🌟 */}
+            <div className="relative w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg border-b-4 border-emerald-700 mx-auto mb-5">
+              <span className="font-black text-white text-3xl tracking-tighter drop-shadow-md">EF</span>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full border-2 border-white shadow-sm"></div>
             </div>
+
             <h2 className="text-2xl font-extrabold">Agent Portal</h2>
             <p className="text-indigo-200 text-sm mt-1">Login to access your assigned forms</p>
           </div>
@@ -232,11 +224,9 @@ export default function AgentPanel() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       
-      {/* MODALS */}
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutes} />
 
-      {/* 🌟 NAYA: DOCUMENT UPLOAD MODAL FOR AGENT 🌟 */}
       {isUploadModalOpen && uploadTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-2xl shadow-2xl relative my-8">
@@ -247,7 +237,6 @@ export default function AgentPanel() {
         </div>
       )}
 
-      {/* HEADER */}
       <header className="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
@@ -255,7 +244,6 @@ export default function AgentPanel() {
             <p className="text-xs md:text-sm text-indigo-200">Location: {agentData.institute}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* 🌟 NAYA: ADD WALK-IN BUTTON IN HEADER 🌟 */}
             <button onClick={() => setIsWalkInModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 px-3 py-2 md:px-4 md:py-2 rounded-lg flex items-center gap-1 text-sm font-bold shadow-md transition-all">
               <PlusCircle size={16} /> <span className="hidden md:inline">Walk-in</span>
             </button>
@@ -267,7 +255,6 @@ export default function AgentPanel() {
         </div>
       </header>
 
-      {/* VIEW DOCS MODAL */}
       {docsModalOpen && selectedStudent && selectedStudent.documents && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl">
@@ -304,7 +291,6 @@ export default function AgentPanel() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 space-y-6">
         
-        {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
             <p className="text-xs text-gray-500 font-bold uppercase">Assigned</p>
@@ -324,7 +310,6 @@ export default function AgentPanel() {
           </div>
         </div>
 
-        {/* LIST */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h2 className="font-bold text-gray-800">My Students To-Do List</h2>
@@ -391,7 +376,6 @@ export default function AgentPanel() {
                       <td className="p-4 align-top text-right">
                         <div className="flex flex-col items-end gap-2">
                           <div className="flex gap-2">
-                            {/* 🌟 NAYA: CONDITIONAL RENDER - View Docs ya Upload Docs 🌟 */}
                             {student.documents ? (
                               <button onClick={() => { setSelectedStudent(student); setDocsModalOpen(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-colors">
                                 <FileText size={14}/> View Docs

@@ -8,7 +8,7 @@ export default function HomePage() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
 
-  const [isCampDetailsOpen, setIsCampDetailsOpen] = useState(false); // 🌟 NAYA: Camp Details Screen
+  const [isCampDetailsOpen, setIsCampDetailsOpen] = useState(false); 
   const [isCampModalOpen, setIsCampModalOpen] = useState(false);
   const [isMissingModalOpen, setIsMissingModalOpen] = useState(false);
   
@@ -18,7 +18,6 @@ export default function HomePage() {
   const [campForm, setCampForm] = useState({ instituteName: '', contactPerson: '', mobile: '', studentCount: '' });
   const [missingForm, setMissingForm] = useState({ studentName: '', mobile: '', missingItems: [] });
 
-  // Fetch Live Exams
   useEffect(() => {
     const docRef = doc(db, "Settings", "LiveExams");
     const unsub = onSnapshot(docRef, (docSnap) => {
@@ -27,7 +26,6 @@ export default function HomePage() {
     return () => unsub();
   }, []);
 
-  // --- SUBMIT CAMP REQUEST ---
   const handleCampSubmit = async (e) => {
     e.preventDefault();
     setLoadingCamp(true);
@@ -48,7 +46,6 @@ export default function HomePage() {
     }
   };
 
-  // --- SUBMIT MISSING ITEM REQUEST ---
   const handleMissingItemToggle = (item) => {
     setMissingForm(prev => {
       const isSelected = prev.missingItems.includes(item);
@@ -90,7 +87,6 @@ export default function HomePage() {
       
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} />
 
-      {/* 🌟 NAYA: CAMP DETAILS/PITCH SCREEN 🌟 */}
       {isCampDetailsOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-300">
@@ -139,7 +135,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* --- CAMP FORM MODAL --- */}
       {isCampModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -161,7 +156,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* --- MISSING ITEM MODAL --- */}
       {isMissingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -197,8 +191,12 @@ export default function HomePage() {
       {/* HEADER */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-sm md:text-xl shadow-md">EF</div>
+          <div className="flex items-center gap-3">
+            {/* 🌟 NAYA: 3D CSS LOGO 🌟 */}
+            <div className="relative w-9 h-9 md:w-11 md:h-11 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg border-b-2 border-emerald-700">
+              <span className="font-black text-white text-base md:text-xl tracking-tighter drop-shadow-md">EF</span>
+              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-yellow-400 rounded-full border-2 border-white shadow-sm"></div>
+            </div>
             <span className="text-xl md:text-2xl font-extrabold italic text-blue-950 tracking-tight">EduFill</span>
           </div>
           <a href="https://wa.me/919752519051?text=Hi%20EduFill%20Support,%20I%20need%20help" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-gray-500 hover:text-green-600 transition-colors bg-gray-100 px-3 py-1.5 rounded-full">
@@ -229,7 +227,6 @@ export default function HomePage() {
           Book Your Slot Now <ArrowRight size={20} />
         </button>
 
-        {/* 🌟 STUDENT ONLY ACTION 🌟 */}
         <button onClick={() => setIsMissingModalOpen(true)} className="flex justify-center items-center gap-2 bg-transparent text-amber-600 hover:bg-amber-50 font-bold py-2 px-4 rounded-xl text-xs md:text-sm transition-colors mb-10 border border-transparent hover:border-amber-200">
           <FileWarning size={16}/> Didn't receive photos/printout?
         </button>
@@ -285,7 +282,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 🌟 NAYA: B2B INSTITUTE BANNER (SEPARATE SECTION) 🌟 */}
+        {/* B2B INSTITUTE BANNER */}
         <div className="w-full bg-white border-2 border-indigo-100 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm mb-4">
            <div className="text-center md:text-left flex-1">
              <span className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded mb-3 inline-block">For Institutes & Coaching Centers</span>
@@ -302,7 +299,10 @@ export default function HomePage() {
       {/* COPYRIGHT FOOTER */}
       <footer className="w-full border-t border-gray-200 bg-gray-50 py-8 text-center mt-auto mb-16 md:mb-0">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="w-6 h-6 bg-gray-300 text-white rounded flex items-center justify-center font-bold text-[10px]">EF</div>
+          {/* 🌟 NAYA: FOOTER SMALL LOGO 🌟 */}
+          <div className="relative w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center shadow-sm">
+            <span className="font-black text-white text-[8px] tracking-tighter">EF</span>
+          </div>
           <span className="font-bold text-gray-500 text-sm">EduFill Solutions</span>
         </div>
         <p className="text-xs font-medium text-gray-400">

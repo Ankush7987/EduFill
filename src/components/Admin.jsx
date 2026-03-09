@@ -28,11 +28,10 @@ export default function AdminPanel() {
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
   const [loading, setLoading] = useState(true);
   
-  // 🌟 FILTERS 🌟
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [searchQuery, setSearchQuery] = useState(''); 
   const [dateFilter, setDateFilter] = useState(''); 
-  const [agentFilter, setAgentFilter] = useState('All'); // 🌟 NAYA: Agent Filter State
+  const [agentFilter, setAgentFilter] = useState('All'); 
 
   const [isWalkInModalOpen, setIsWalkInModalOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState({ exam: '', institute: '', fullName: '', mobile: '', batchName: '', category: '', slotDate: '', slotTime: '' });
@@ -492,14 +491,11 @@ export default function AdminPanel() {
     }
   };
 
-  // 🌟 NAYA: SMART AGENT LIST EXTRACTOR 🌟
-  // Yeh list employee list aur past bookings dono mila kar banegi taaki deleted agent bhi filter ho sakein
   const allAgentsList = [...new Set([
     ...employees.map(e => e.name),
     ...bookings.map(b => b.assignedTo).filter(a => a && a !== 'Unassigned')
   ])].sort();
 
-  // 🌟 UPDATE: FILTER LOGIC WITH AGENT FILTER 🌟
   const filteredBookings = bookings.filter(booking => {
     let categoryMatch = true;
     if (activeFilter === 'Ribosome') categoryMatch = booking.collectionName === 'Ribosome_Students';
@@ -515,7 +511,6 @@ export default function AdminPanel() {
     let dateMatch = true; 
     if (dateFilter) dateMatch = booking.slotDate === dateFilter;
 
-    // 🌟 NAYA: AGENT FILTER MATCH 🌟
     let agentMatch = true;
     if (agentFilter !== 'All') {
       const assigned = booking.assignedTo || 'Unassigned';
@@ -529,7 +524,7 @@ export default function AdminPanel() {
     setSearchQuery(''); 
     setDateFilter(''); 
     setActiveFilter('All'); 
-    setAgentFilter('All'); // Reset Agent filter too
+    setAgentFilter('All'); 
   };
 
   const exportToExcel = () => {
@@ -566,7 +561,11 @@ export default function AdminPanel() {
       
       <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-md z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xs">EF</div>
+          {/* 🌟 NAYA: MOBILE HEADER LOGO 🌟 */}
+          <div className="relative w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm border-b-2 border-emerald-700">
+            <span className="font-black text-white text-xs tracking-tighter drop-shadow-sm">EF</span>
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-gray-900 shadow-sm"></div>
+          </div>
           <span className="text-xl font-extrabold italic tracking-tight">EduFill Admin</span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1 focus:outline-none hover:bg-gray-800 rounded-md transition-colors">
@@ -700,7 +699,11 @@ export default function AdminPanel() {
       <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50 w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 shadow-2xl md:shadow-none`}>
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xl">EF</div>
+            {/* 🌟 NAYA: DESKTOP SIDEBAR LOGO 🌟 */}
+            <div className="relative w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-md border-b-2 border-emerald-700">
+              <span className="font-black text-white text-lg tracking-tighter drop-shadow-sm">EF</span>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-gray-900 shadow-sm"></div>
+            </div>
             <span className="text-2xl font-extrabold italic">EduFill</span>
           </div>
           <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24}/></button>
@@ -773,7 +776,6 @@ export default function AdminPanel() {
                   />
                 </div>
 
-                {/* 🌟 NAYA: AGENT FILTER DROPDOWN 🌟 */}
                 <div className="relative flex-1 min-w-[140px] xl:w-48">
                   <UserCircle size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <select 
@@ -795,7 +797,6 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            {/* In 4 dabbo me stats ab filter hone ke baad dikhenge! */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
               <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
                 <div className="bg-blue-100 p-2 md:p-3 rounded-xl text-blue-600"><Users size={20} className="md:w-6 md:h-6"/></div>
