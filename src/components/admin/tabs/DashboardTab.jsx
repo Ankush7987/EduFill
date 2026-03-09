@@ -1,5 +1,4 @@
 import React from 'react';
-// 🌟 YAHAN LOADER2 MISSING THA, JO AB ADD HO GAYA HAI 🌟
 import { Radio, PlusCircle, Download, Filter, Search, Calendar, UserCircle, X, Users, Clock, CheckCircle, IndianRupee, Edit, Camera, Printer, FileText, Upload, MessageCircle, Trash2, Loader2 } from 'lucide-react';
 
 export default function DashboardTab({
@@ -65,7 +64,7 @@ export default function DashboardTab({
         </div>
         <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
           <div className="bg-amber-100 p-2 md:p-3 rounded-xl text-amber-600"><Clock size={20} className="md:w-6 md:h-6"/></div>
-          <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Pending</p><p className="text-xl md:text-2xl font-black text-gray-900">{pendingCount}</p></div>
+          <div><p className="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Queue Pending</p><p className="text-xl md:text-2xl font-black text-gray-900">{pendingCount}</p></div>
         </div>
         <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
           <div className="bg-emerald-100 p-2 md:p-3 rounded-xl text-emerald-600"><CheckCircle size={20} className="md:w-6 md:h-6"/></div>
@@ -114,11 +113,15 @@ export default function DashboardTab({
                     <td className="p-3 md:p-4 align-top">
                       <p className="font-bold text-gray-800 text-sm">{booking.slotDate}</p>
                       <p className="text-xs md:text-sm text-gray-500 flex items-center gap-1 mb-1"><Clock size={12}/> {booking.slotTime}</p>
+                      {booking.reportingTime && <p className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded inline-block">Report: {booking.reportingTime}</p>}
                     </td>
                     <td className="p-3 md:p-4 align-top">
                       <p className="font-black text-indigo-600 text-xs md:text-sm mb-2">{booking.tokenNumber}</p>
                       <div className="flex gap-2 items-center mb-2 flex-wrap">
-                        <span className={`px-2 py-1 rounded text-[10px] md:text-[11px] font-bold ${booking.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status || 'Pending'}</span>
+                        {/* 🌟 DYNAMIC STATUS COLORS 🌟 */}
+                        <span className={`px-2 py-1 rounded text-[10px] md:text-[11px] font-bold ${booking.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : booking.status === 'Arrived' ? 'bg-cyan-100 text-cyan-700' : booking.status === 'Absent' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {booking.status || 'Pending'}
+                        </span>
                         {booking.paymentStatus === 'Paid' ? (
                           <div className="flex items-center gap-1">
                             <span className="px-2 py-1 rounded text-[10px] md:text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 flex items-center gap-1"><CheckCircle size={10}/> ₹{booking.paymentAmount}</span>
@@ -149,7 +152,7 @@ export default function DashboardTab({
                           <button onClick={() => { setUploadTarget(booking); setIsUploadModalOpen(true); }} className="flex items-center gap-1 px-2 py-1.5 md:px-3 md:py-2 text-[10px] md:text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 rounded-lg transition-all shadow-sm"><Upload size={12}/> Upload</button>
                         )}
                         <a href={`https://wa.me/91${booking.mobile}?text=Hello ${booking.fullName}...`} target="_blank" rel="noreferrer" className="flex items-center justify-center p-1.5 md:p-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white rounded-lg transition-colors border border-green-100"><MessageCircle size={16}/></a>
-                        {booking.status !== 'Completed' && (
+                        {(booking.status === 'Pending' || booking.status === 'Arrived') && (
                           <button onClick={() => markAsCompleted(booking.id, booking.collectionName)} className="flex items-center justify-center p-1.5 md:p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors border border-emerald-100"><CheckCircle size={16}/></button>
                         )}
                         <button onClick={() => deleteBooking(booking.id, booking.collectionName)} className="flex items-center justify-center p-1.5 md:p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100"><Trash2 size={16}/></button>

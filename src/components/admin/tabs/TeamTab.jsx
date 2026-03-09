@@ -12,7 +12,7 @@ export default function TeamTab({ employees, empInstituteFilter, setEmpInstitute
       <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-10">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Agent Management</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">Add your employees here. Forms will be auto-assigned to them.</p>
+          <p className="text-sm md:text-base text-gray-500 mt-1">Manage team, pins, and track who is Online.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -49,7 +49,7 @@ export default function TeamTab({ employees, empInstituteFilter, setEmpInstitute
                 <th className="p-3 md:p-4 font-semibold">Agent Info</th>
                 <th className="p-3 md:p-4 font-semibold">Login PIN</th>
                 <th className="p-3 md:p-4 font-semibold">Assigned Institute</th>
-                <th className="p-3 md:p-4 font-semibold">Forms Today</th>
+                <th className="p-3 md:p-4 font-semibold">Forms Assigned</th>
                 <th className="p-3 md:p-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -61,7 +61,10 @@ export default function TeamTab({ employees, empInstituteFilter, setEmpInstitute
                   <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-3 md:p-4">
                       <p className="font-bold text-gray-900 text-base">{emp.name}</p>
-                      <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-1 inline-block font-bold">Active</span>
+                      {/* 🌟 NAYA: DYNAMIC ONLINE/OFFLINE BADGE 🌟 */}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full mt-1 inline-block font-bold ${emp.active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {emp.active ? '🟢 Online' : '🔴 On Break (Offline)'}
+                      </span>
                     </td>
                     <td className="p-3 md:p-4"><span className="font-mono bg-gray-100 px-3 py-1 rounded text-gray-800 font-bold tracking-widest">{emp.pin}</span></td>
                     <td className="p-3 md:p-4"><span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-200">{emp.institute}</span></td>
