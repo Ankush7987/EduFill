@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-// 🌟 NAYA: 'Calendar' icon import kiya 🌟
-import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, CheckCircle, Check, Clock, Trash2, Power, Settings, Radio, Filter, Search, X, Download, MessageCircle, PlusCircle, IndianRupee, Edit, Building, MapPin, FileText, Upload, Camera, Printer, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, Calendar, UserPlus, Shield, UserCircle } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-import { collection, doc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, onSnapshot, query } from 'firebase/firestore';
+import { collection, doc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase'; 
 
 import AdminLogin from './admin/AdminLogin';
@@ -25,12 +24,15 @@ export default function AdminPanel() {
   const [bookings, setBookings] = useState([]);
   const [campRequests, setCampRequests] = useState([]); 
   const [missingRequests, setMissingRequests] = useState([]); 
+  const [employees, setEmployees] = useState([]);
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
   const [loading, setLoading] = useState(true);
   
+  // 🌟 FILTERS 🌟
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [searchQuery, setSearchQuery] = useState(''); 
   const [dateFilter, setDateFilter] = useState(''); 
+  const [agentFilter, setAgentFilter] = useState('All'); // 🌟 NAYA: Agent Filter State
 
   const [isWalkInModalOpen, setIsWalkInModalOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState({ exam: '', institute: '', fullName: '', mobile: '', batchName: '', category: '', slotDate: '', slotTime: '' });
@@ -54,6 +56,10 @@ export default function AdminPanel() {
   const [replaceCrop, setReplaceCrop] = useState();
   const [replaceCompletedCrop, setReplaceCompletedCrop] = useState(null);
   const replaceImgRef = useRef(null);
+
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+  const [empForm, setEmpForm] = useState({ name: '', pin: '', institute: 'Ribosome Institute' });
+  const [savingEmp, setSavingEmp] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -99,7 +105,14 @@ export default function AdminPanel() {
       setMissingRequests(missingDocs);
     });
 
-    return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); };
+    const qEmp = query(collection(db, 'Employees'));
+    const unsubEmp = onSnapshot(qEmp, (snapshot) => {
+      const empData = [];
+      snapshot.forEach(doc => empData.push({ id: doc.id, ...doc.data() }));
+      setEmployees(empData);
+    });
+
+    return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); unsubEmp(); };
   }, [isAuthenticated]);
 
   const handleLogin = (e) => {
@@ -112,6 +125,41 @@ export default function AdminPanel() {
     const newStatus = { ...liveExams, [examKey]: !liveExams[examKey] };
     try { await setDoc(doc(db, "Settings", "LiveExams"), newStatus); } 
     catch (error) { console.error("Error:", error); alert("Failed to update live status!"); }
+  };
+
+  const handleAddEmployee = async (e) => {
+    e.preventDefault();
+    if(empForm.pin.length !== 4) {
+      alert("PIN must be exactly 4 digits for easy agent login.");
+      return;
+    }
+    setSavingEmp(true);
+    try {
+      await addDoc(collection(db, 'Employees'), {
+        name: empForm.name,
+        pin: empForm.pin,
+        institute: empForm.institute,
+        role: 'agent',
+        assignedCount: 0,
+        createdAt: serverTimestamp(),
+        active: true
+      });
+      setIsEmployeeModalOpen(false);
+      setEmpForm({ name: '', pin: '', institute: 'Ribosome Institute' });
+      alert("Employee created successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add employee");
+    } finally {
+      setSavingEmp(false);
+    }
+  };
+
+  const deleteEmployee = async (id) => {
+    if(window.confirm("Are you sure you want to remove this employee?")) {
+      try { await deleteDoc(doc(db, "Employees", id)); } 
+      catch (err) { console.error(err); alert("Failed to delete!"); }
+    }
   };
 
   const markAsCompleted = async (id, colName) => {
@@ -184,6 +232,32 @@ export default function AdminPanel() {
   const handleWalkInChange = (e) => setWalkInForm({ ...walkInForm, [e.target.name]: e.target.value });
   const generateToken = () => "EDU-" + Math.floor(100000 + Math.random() * 900000);
 
+  const assignAgent = async (instituteName) => {
+    try {
+      const q = query(collection(db, "Employees"), where("institute", "==", instituteName), where("active", "==", true));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) return null; 
+
+      let agents = [];
+      querySnapshot.forEach((doc) => {
+        agents.push({ id: doc.id, ...doc.data() });
+      });
+
+      agents.sort((a, b) => (a.assignedCount || 0) - (b.assignedCount || 0));
+      const selectedAgent = agents[0];
+
+      await updateDoc(doc(db, "Employees", selectedAgent.id), {
+        assignedCount: (selectedAgent.assignedCount || 0) + 1
+      });
+
+      return selectedAgent.name; 
+    } catch (error) {
+      console.error("Error assigning agent:", error);
+      return null;
+    }
+  };
+
   const submitWalkIn = async (e) => {
     e.preventDefault(); setSavingWalkIn(true);
     try {
@@ -191,14 +265,23 @@ export default function AdminPanel() {
       if (walkInForm.institute === "Ribosome Institute") collectionName = "Ribosome_Students";
       else if (walkInForm.institute === "Unacademy") collectionName = "Unacademy_Students";
 
+      const assignedAgentName = await assignAgent(walkInForm.institute);
+
       const newDocRef = await addDoc(collection(db, collectionName), { 
-        ...walkInForm, tokenNumber: generateToken(), status: 'Pending', paymentStatus: 'Due', photoDelivered: false, confirmationDelivered: false, timestamp: serverTimestamp() 
+        ...walkInForm, 
+        tokenNumber: generateToken(), 
+        status: 'Pending', 
+        paymentStatus: 'Due', 
+        photoDelivered: false, 
+        confirmationDelivered: false, 
+        assignedTo: assignedAgentName || 'Unassigned',
+        timestamp: serverTimestamp() 
       });
 
       const savedStudentDetails = { id: newDocRef.id, collectionName: collectionName, fullName: walkInForm.fullName, category: walkInForm.category };
       setIsWalkInModalOpen(false); setWalkInForm({ exam: '', institute: '', fullName: '', mobile: '', batchName: '', category: '', slotDate: '', slotTime: '' });
       
-      if(window.confirm(`Successfully Added: ${savedStudentDetails.fullName}\n\nDo you want to upload their documents now to save time?`)) {
+      if(window.confirm(`Successfully Added: ${savedStudentDetails.fullName}\nAssigned to: ${assignedAgentName || 'Admin'}\n\nDo you want to upload their documents now?`)) {
         setUploadTarget(savedStudentDetails); setTimeout(() => setIsUploadModalOpen(true), 300);
       }
     } catch (err) { console.error("Error:", err); alert("Failed to add walk-in student."); } 
@@ -409,6 +492,14 @@ export default function AdminPanel() {
     }
   };
 
+  // 🌟 NAYA: SMART AGENT LIST EXTRACTOR 🌟
+  // Yeh list employee list aur past bookings dono mila kar banegi taaki deleted agent bhi filter ho sakein
+  const allAgentsList = [...new Set([
+    ...employees.map(e => e.name),
+    ...bookings.map(b => b.assignedTo).filter(a => a && a !== 'Unassigned')
+  ])].sort();
+
+  // 🌟 UPDATE: FILTER LOGIC WITH AGENT FILTER 🌟
   const filteredBookings = bookings.filter(booking => {
     let categoryMatch = true;
     if (activeFilter === 'Ribosome') categoryMatch = booking.collectionName === 'Ribosome_Students';
@@ -420,11 +511,26 @@ export default function AdminPanel() {
       const q = searchQuery.toLowerCase();
       searchMatch = (booking.fullName && booking.fullName.toLowerCase().includes(q)) || (booking.mobile && booking.mobile.includes(q)) || (booking.tokenNumber && booking.tokenNumber.toLowerCase().includes(q)) || (booking.applicationNumber && booking.applicationNumber.toLowerCase().includes(q));
     }
-    let dateMatch = true; if (dateFilter) dateMatch = booking.slotDate === dateFilter;
-    return categoryMatch && searchMatch && dateMatch;
+    
+    let dateMatch = true; 
+    if (dateFilter) dateMatch = booking.slotDate === dateFilter;
+
+    // 🌟 NAYA: AGENT FILTER MATCH 🌟
+    let agentMatch = true;
+    if (agentFilter !== 'All') {
+      const assigned = booking.assignedTo || 'Unassigned';
+      agentMatch = assigned === agentFilter;
+    }
+
+    return categoryMatch && searchMatch && dateMatch && agentMatch;
   });
 
-  const clearFilters = () => { setSearchQuery(''); setDateFilter(''); setActiveFilter('All'); };
+  const clearFilters = () => { 
+    setSearchQuery(''); 
+    setDateFilter(''); 
+    setActiveFilter('All'); 
+    setAgentFilter('All'); // Reset Agent filter too
+  };
 
   const exportToExcel = () => {
     let reportHeading = "Complete Application Database";
@@ -433,10 +539,10 @@ export default function AdminPanel() {
     else if (activeFilter === 'Others') reportHeading = "Other External Student Data";
 
     const titleRow = `"${reportHeading}"`; const emptyRow = `""`; 
-    const headers = ["Token No.", "Student Name", "Mobile", "Category", "Exam", "Institute", "Batch", "Slot Date", "Slot Time", "Form Status", "Payment Status", "Payment Amount", "Payment Method", "Application No.", "Photo Delivered", "Confirmation Delivered", "Applied On"];
+    const headers = ["Token No.", "Student Name", "Mobile", "Category", "Exam", "Institute", "Batch", "Slot Date", "Slot Time", "Form Status", "Payment Status", "Payment Amount", "Payment Method", "Application No.", "Photo Delivered", "Confirmation Delivered", "Applied On", "Assigned Agent"];
     
     const rows = filteredBookings.map(b => [
-      b.tokenNumber || 'N/A', b.fullName || 'N/A', b.mobile || 'N/A', b.category || 'N/A', b.exam || 'N/A', b.institute || 'N/A', b.batchName || 'N/A', b.slotDate || 'N/A', b.slotTime || 'N/A', b.status || 'Pending', b.paymentStatus || 'Due', b.paymentAmount ? `₹${b.paymentAmount}` : 'N/A', b.paymentMethod || 'N/A', b.applicationNumber || 'N/A', b.photoDelivered ? 'Yes' : 'No', b.confirmationDelivered ? 'Yes' : 'No', formatTime(b.timestamp)
+      b.tokenNumber || 'N/A', b.fullName || 'N/A', b.mobile || 'N/A', b.category || 'N/A', b.exam || 'N/A', b.institute || 'N/A', b.batchName || 'N/A', b.slotDate || 'N/A', b.slotTime || 'N/A', b.status || 'Pending', b.paymentStatus || 'Due', b.paymentAmount ? `₹${b.paymentAmount}` : 'N/A', b.paymentMethod || 'N/A', b.applicationNumber || 'N/A', b.photoDelivered ? 'Yes' : 'No', b.confirmationDelivered ? 'Yes' : 'No', formatTime(b.timestamp), b.assignedTo || 'Unassigned'
     ]);
 
     const csvContent = [titleRow, emptyRow, headers.join(","), ...rows.map(e => e.map(item => `"${item}"`).join(","))].join("\n");
@@ -458,7 +564,6 @@ export default function AdminPanel() {
   return (
     <div className="h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden">
       
-      {/* MOBILE TOP HEADER */}
       <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-md z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-xs">EF</div>
@@ -471,6 +576,41 @@ export default function AdminPanel() {
 
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutesList} />
+
+      {isEmployeeModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative my-8 animate-in zoom-in duration-300">
+            <button onClick={() => setIsEmployeeModalOpen(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:text-red-500 transition-colors z-10"><X size={20}/></button>
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-4"><UserPlus className="text-indigo-500"/> Add New Agent</h2>
+            
+            <form onSubmit={handleAddEmployee} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Agent Full Name</label>
+                <input type="text" required value={empForm.name} onChange={(e) => setEmpForm({...empForm, name: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Rahul Kumar" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Secret PIN (4-Digits)</label>
+                <input type="text" required maxLength="4" pattern="\d{4}" value={empForm.pin} onChange={(e) => setEmpForm({...empForm, pin: e.target.value.replace(/\D/g, '')})} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none tracking-widest font-mono" placeholder="1234" />
+                <p className="text-[10px] text-gray-500 mt-1">Agent will use this PIN to login to their portal.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Assigned Institute</label>
+                <select value={empForm.institute} onChange={(e) => setEmpForm({...empForm, institute: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                  <option value="Ribosome Institute">Ribosome Institute</option>
+                  <option value="Unacademy">Unacademy</option>
+                  <option value="Others">Others (Center)</option>
+                  {approvedInstitutesList.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+                </select>
+                <p className="text-[10px] text-indigo-600 font-bold mt-1">Agent will only receive forms from this institute.</p>
+              </div>
+
+              <button disabled={savingEmp} type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md flex justify-center items-center gap-2">
+                {savingEmp ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>} Save Agent
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {replaceCropModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
@@ -579,6 +719,8 @@ export default function AdminPanel() {
             {campRequests.filter(c => c.status === 'New Request').length > 0 && (<span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{campRequests.filter(c => c.status === 'New Request').length} New</span>)}
           </button>
 
+          <button onClick={() => { setActiveTab('team'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'team' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Shield size={20}/> Team & Agents</button>
+
           <button onClick={() => { setActiveTab('liveController'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'liveController' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Settings size={20}/> Form Settings</button>
         </nav>
 
@@ -603,7 +745,6 @@ export default function AdminPanel() {
               </div>
             </header>
 
-            {/* 🌟 NAYA: CALENDAR ICON ADD KIYA DATE BOX MEIN 🌟 */}
             <div className="bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 md:mb-8 flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 text-gray-500 font-bold mr-2 text-sm"><Filter size={16} /> Filters:</div>
@@ -619,7 +760,6 @@ export default function AdminPanel() {
                   <input type="text" placeholder="Search Name/App No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"/>
                 </div>
                 
-                {/* DATE FILTER WITH CALENDAR TRICK */}
                 <div className="relative flex-1 min-w-[130px] xl:w-48">
                   <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <input 
@@ -633,12 +773,29 @@ export default function AdminPanel() {
                   />
                 </div>
 
-                {(searchQuery || dateFilter || activeFilter !== 'All') && (
+                {/* 🌟 NAYA: AGENT FILTER DROPDOWN 🌟 */}
+                <div className="relative flex-1 min-w-[140px] xl:w-48">
+                  <UserCircle size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <select 
+                    value={agentFilter} 
+                    onChange={(e) => setAgentFilter(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-600 rounded-full pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all cursor-pointer appearance-none"
+                  >
+                    <option value="All">All Agents</option>
+                    {allAgentsList.map((agentName, idx) => (
+                      <option key={idx} value={agentName}>{agentName}</option>
+                    ))}
+                    <option value="Unassigned">Unassigned</option>
+                  </select>
+                </div>
+
+                {(searchQuery || dateFilter || activeFilter !== 'All' || agentFilter !== 'All') && (
                   <button onClick={clearFilters} className="flex items-center justify-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-full transition-all"><X size={14} /> Clear</button>
                 )}
               </div>
             </div>
 
+            {/* In 4 dabbo me stats ab filter hone ke baad dikhenge! */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
               <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
                 <div className="bg-blue-100 p-2 md:p-3 rounded-xl text-blue-600"><Users size={20} className="md:w-6 md:h-6"/></div>
@@ -682,7 +839,11 @@ export default function AdminPanel() {
                           <td className="p-3 md:p-4 align-top">
                             <p className="font-bold text-gray-900">{booking.fullName}</p>
                             <p className="text-xs md:text-sm text-gray-500">{booking.mobile}</p>
-                            <span className="text-[10px] md:text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded mt-1 inline-block font-bold">{booking.category}</span>
+                            <span className="text-[10px] md:text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded mt-1 mr-2 inline-block font-bold">{booking.category}</span>
+                            
+                            {booking.assignedTo && booking.assignedTo !== 'Unassigned' && (
+                              <span className="text-[10px] md:text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded mt-1 inline-block font-bold">Agent: {booking.assignedTo}</span>
+                            )}
                           </td>
                           <td className="p-3 md:p-4 align-top">
                             <p className="font-bold text-blue-900">{booking.exam}</p>
@@ -741,6 +902,73 @@ export default function AdminPanel() {
               </div>
             </div>
            </div>
+        )}
+
+        {activeTab === 'team' && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+            <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-10">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Agent Management</h1>
+                <p className="text-sm md:text-base text-gray-500 mt-1">Add your employees here. Forms will be auto-assigned to them.</p>
+              </div>
+              <button onClick={() => setIsEmployeeModalOpen(true)} className="flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full shadow-lg transition-all font-bold">
+                <UserPlus size={18} /> Add New Agent
+              </button>
+            </header>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                <Shield className="text-indigo-500" size={20} />
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">Active Team Members</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 text-xs md:text-sm uppercase tracking-wider border-b border-gray-100">
+                      <th className="p-3 md:p-4 font-semibold">Agent Info</th>
+                      <th className="p-3 md:p-4 font-semibold">Login PIN</th>
+                      <th className="p-3 md:p-4 font-semibold">Assigned Institute</th>
+                      <th className="p-3 md:p-4 font-semibold">Forms Today</th>
+                      <th className="p-3 md:p-4 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {employees.length === 0 ? (
+                      <tr><td colSpan="5" className="p-8 text-center text-gray-500 font-medium">No agents added yet. Click "Add New Agent" to start.</td></tr>
+                    ) : (
+                      employees.map((emp) => (
+                        <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="p-3 md:p-4">
+                            <p className="font-bold text-gray-900 text-base">{emp.name}</p>
+                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-1 inline-block font-bold">Active</span>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <span className="font-mono bg-gray-100 px-3 py-1 rounded text-gray-800 font-bold tracking-widest">{emp.pin}</span>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-200">
+                              {emp.institute}
+                            </span>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-black text-gray-800">{emp.assignedCount || 0}</span>
+                              <span className="text-xs text-gray-500">assigned</span>
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 text-right">
+                            <button onClick={() => deleteEmployee(emp.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100">
+                              <Trash2 size={16}/>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'missing' && (
