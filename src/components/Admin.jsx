@@ -28,10 +28,12 @@ export default function AdminPanel() {
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
   const [loading, setLoading] = useState(true);
   
+  // 🌟 FILTERS 🌟
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [searchQuery, setSearchQuery] = useState(''); 
   const [dateFilter, setDateFilter] = useState(''); 
   const [agentFilter, setAgentFilter] = useState('All'); 
+  const [empInstituteFilter, setEmpInstituteFilter] = useState('All'); // 🌟 NAYA: Team tab ke liye filter
 
   const [isWalkInModalOpen, setIsWalkInModalOpen] = useState(false);
   const [walkInForm, setWalkInForm] = useState({ exam: '', institute: '', fullName: '', mobile: '', batchName: '', category: '', slotDate: '', slotTime: '' });
@@ -491,6 +493,14 @@ export default function AdminPanel() {
     }
   };
 
+  const approvedInstitutesList = [...new Set(campRequests.filter(c => c.status === 'Completed').map(c => c.instituteName))].filter(name => name !== 'Ribosome Institute' && name !== 'Unacademy');
+
+  // 🌟 NAYA: EMPLOYEES FILTER LOGIC 🌟
+  const filteredEmployees = employees.filter(emp => {
+    if (empInstituteFilter === 'All') return true;
+    return emp.institute === empInstituteFilter;
+  });
+
   const allAgentsList = [...new Set([
     ...employees.map(e => e.name),
     ...bookings.map(b => b.assignedTo).filter(a => a && a !== 'Unassigned')
@@ -552,8 +562,6 @@ export default function AdminPanel() {
   const totalPaidAmount = filteredBookings.reduce((sum, b) => b.paymentStatus === 'Paid' ? sum + Number(b.paymentAmount || 0) : sum, 0);
   const pendingMissingCount = missingRequests.filter(m => m.status === 'Pending').length;
 
-  const approvedInstitutesList = [...new Set(campRequests.filter(c => c.status === 'Completed').map(c => c.instituteName))].filter(name => name !== 'Ribosome Institute' && name !== 'Unacademy');
-
   if (!isAuthenticated) { return <AdminLogin password={password} setPassword={setPassword} error={error} handleLogin={handleLogin} />; }
 
   return (
@@ -561,7 +569,6 @@ export default function AdminPanel() {
       
       <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-md z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
-          {/* 🌟 NAYA: MOBILE HEADER LOGO 🌟 */}
           <div className="relative w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm border-b-2 border-emerald-700">
             <span className="font-black text-white text-xs tracking-tighter drop-shadow-sm">EF</span>
             <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-gray-900 shadow-sm"></div>
@@ -699,7 +706,6 @@ export default function AdminPanel() {
       <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50 w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 shadow-2xl md:shadow-none`}>
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* 🌟 NAYA: DESKTOP SIDEBAR LOGO 🌟 */}
             <div className="relative w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-md border-b-2 border-emerald-700">
               <span className="font-black text-white text-lg tracking-tighter drop-shadow-sm">EF</span>
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-gray-900 shadow-sm"></div>
@@ -905,6 +911,7 @@ export default function AdminPanel() {
            </div>
         )}
 
+        {/* 🌟 NAYA: TEAM TAB WITH INSTITUTE FILTER 🌟 */}
         {activeTab === 'team' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-500">
             <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-10">
@@ -912,9 +919,28 @@ export default function AdminPanel() {
                 <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Agent Management</h1>
                 <p className="text-sm md:text-base text-gray-500 mt-1">Add your employees here. Forms will be auto-assigned to them.</p>
               </div>
-              <button onClick={() => setIsEmployeeModalOpen(true)} className="flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full shadow-lg transition-all font-bold">
-                <UserPlus size={18} /> Add New Agent
-              </button>
+              
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                 {/* 🌟 NAYA: INSTITUTE FILTER DROPDOWN 🌟 */}
+                 <div className="relative w-full sm:w-48">
+                    <Building size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <select
+                      value={empInstituteFilter}
+                      onChange={(e) => setEmpInstituteFilter(e.target.value)}
+                      className="w-full bg-white border border-gray-300 text-gray-700 rounded-full pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer appearance-none shadow-sm"
+                    >
+                      <option value="All">All Institutes</option>
+                      <option value="Ribosome Institute">Ribosome Institute</option>
+                      <option value="Unacademy">Unacademy</option>
+                      <option value="Others">Others</option>
+                      {approvedInstitutesList.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+                    </select>
+                 </div>
+                 
+                 <button onClick={() => setIsEmployeeModalOpen(true)} className="flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full shadow-lg transition-all font-bold w-full sm:w-auto">
+                   <UserPlus size={18} /> Add New Agent
+                 </button>
+              </div>
             </header>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -934,10 +960,11 @@ export default function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {employees.length === 0 ? (
-                      <tr><td colSpan="5" className="p-8 text-center text-gray-500 font-medium">No agents added yet. Click "Add New Agent" to start.</td></tr>
+                    {/* 🌟 NAYA: FILTERED EMPLOYEES MAP KIYA 🌟 */}
+                    {filteredEmployees.length === 0 ? (
+                      <tr><td colSpan="5" className="p-8 text-center text-gray-500 font-medium">No agents found for this selection.</td></tr>
                     ) : (
-                      employees.map((emp) => (
+                      filteredEmployees.map((emp) => (
                         <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                           <td className="p-3 md:p-4">
                             <p className="font-bold text-gray-900 text-base">{emp.name}</p>
