@@ -8,13 +8,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIABAMAAAAGvC8KAAAAD1BMVEUAAAD778n/+/+//+/+//8fT6p4AAAALUlEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAAAAABwA8UAAAdC3z68AAAAASUVORK5CYII=",
+      "src": "https://cdn-icons-png.flaticon.com/512/4762/4762311.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIABAMAAAAGvC8KAAAAD1BMVEUAAAD778n/+/+//+/+//8fT6p4AAAALUlEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAAAAABwA8UAAAdC3z68AAAAASUVORK5CYII=",
+      "src": "https://cdn-icons-png.flaticon.com/512/4762/4762311.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
