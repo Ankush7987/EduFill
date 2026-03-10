@@ -3,7 +3,7 @@ import { MessageSquare, X, Send, Loader2, Bot } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // 🌟 API KEY 🌟
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyAfNlB9W7RH60KgZo8Wdn_1KDv3SZtp5ok";
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
 // 🌟 LATEST MODEL 🌟
