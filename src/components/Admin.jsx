@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check } from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -19,6 +19,8 @@ import TeamTab from './admin/tabs/TeamTab';
 import MissingTab from './admin/tabs/MissingTab';
 import CampTab from './admin/tabs/CampTab';
 import SettingsTab from './admin/tabs/SettingsTab';
+import CounsellingLeads from '../components/CounsellingLeads'; // 🌟 NAYA COUNSELLING COMPONENT IMPORT 🌟
+
 
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -330,6 +332,10 @@ export default function AdminPanel() {
         
         <nav className="flex-1 p-4 space-y-3 mt-2 overflow-y-auto">
           <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><LayoutDashboard size={20}/> Dashboard</button>
+          
+          {/* 🌟 NAYA COUNSELLING LEADS BUTTON YAHAN ADD KIYA HAI 🌟 */}
+          <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Headphones size={20}/> Counselling Leads</button>
+
           <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><div className="flex items-center gap-3"><FileWarning size={20}/> Missing Items</div>{pendingMissingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{pendingMissingCount}</span>}</button>
           <button onClick={() => { setActiveTab('camps'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><div className="flex items-center gap-3"><Building size={20}/> Camp Requests</div>{campRequests.filter(c => c.status === 'New Request').length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New</span>}</button>
           <button onClick={() => { setActiveTab('team'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'team' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Shield size={20}/> Team & Agents</button>
@@ -358,6 +364,11 @@ export default function AdminPanel() {
             markAsCompleted={markAsCompleted} deleteBooking={deleteBooking} openPaymentModal={openPaymentModal} 
             togglePhotoDeliveryStatus={togglePhotoDeliveryStatus} toggleConfirmationStatus={toggleConfirmationStatus} formatTime={formatTime}
           />
+        )}
+
+        {/* 🌟 NAYA COUNSELLING TAB RENDER YAHAN HOGA 🌟 */}
+        {activeTab === 'counselling' && (
+          <CounsellingLeads />
         )}
 
         {activeTab === 'team' && (

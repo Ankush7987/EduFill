@@ -4,8 +4,7 @@ import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/f
 import { db } from '../firebase'; 
 import BookingModal from '../components/BookingModal'; 
 import Chatbot from '../components/Chatbot';
-
-
+import CounsellingSection from '../components/CounsellingSection';
 
 export default function HomePage() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -86,7 +85,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-20 md:pb-0 relative selection:bg-emerald-200">
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans relative selection:bg-emerald-200">
       
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} />
 
@@ -195,7 +194,6 @@ export default function HomePage() {
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            {/* 🌟 NAYA: 3D CSS LOGO 🌟 */}
             <div className="relative w-9 h-9 md:w-11 md:h-11 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg border-b-2 border-emerald-700">
               <span className="font-black text-white text-base md:text-xl tracking-tighter drop-shadow-md">EF</span>
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-yellow-400 rounded-full border-2 border-white shadow-sm"></div>
@@ -226,7 +224,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        <button onClick={() => setIsBookingOpen(true)} className="hidden md:flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all mb-6 w-full max-w-sm">
+        {/* 🌟 BOOK YOUR SLOT BUTTON - AB MOBILE PAR BHI DIKHEGA 🌟 */}
+        <button onClick={() => setIsBookingOpen(true)} className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all mb-6 w-full max-w-sm">
           Book Your Slot Now <ArrowRight size={20} />
         </button>
 
@@ -299,10 +298,12 @@ export default function HomePage() {
 
       </main>
 
+      {/* COUNSELLING PACKAGES */}
+      <CounsellingSection />
+
       {/* COPYRIGHT FOOTER */}
-      <footer className="w-full border-t border-gray-200 bg-gray-50 py-8 text-center mt-auto mb-16 md:mb-0">
+      <footer className="w-full border-t border-gray-200 bg-gray-50 py-8 text-center mt-auto">
         <div className="flex items-center justify-center gap-2 mb-2">
-          {/* 🌟 NAYA: FOOTER SMALL LOGO 🌟 */}
           <div className="relative w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center shadow-sm">
             <span className="font-black text-white text-[8px] tracking-tighter">EF</span>
           </div>
@@ -314,19 +315,8 @@ export default function HomePage() {
         <p className="text-[10px] text-gray-400 mt-1">Made with ❤️ for Students in India</p>
       </footer>
 
-      {/* MOBILE STICKY FLOATING ACTION BUTTON */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full p-4 bg-white/90 backdrop-blur-md border-t border-gray-100 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
-        <button onClick={() => setIsBookingOpen(true)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-transform">
-          Book Slot Now <ArrowRight size={20}/>
-        </button>
-      </div>
-
-
-      <div className="md:hidden fixed bottom-0 left-0 w-full p-4 ...">
-        {/* Mobile button code */}
-      </div>
-
-    <Chatbot />
+      {/* AI CHATBOT COMPONENT */}
+      <Chatbot />
 
     </div>
   );
