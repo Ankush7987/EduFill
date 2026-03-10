@@ -105,17 +105,30 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100 flex gap-2 items-center">
-            <input 
-              type="text" value={input} onChange={(e) => setInput(e.target.value)}
+         {/* Input Area */}
+          <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100 flex gap-2 items-end">
+            <textarea 
+              value={input} 
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                // WhatsApp Logic: Enter = Send, Shift+Enter = New Line
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(e);
+                }
+              }}
               placeholder="Ask about forms, docs..." 
-              className="flex-1 bg-gray-100 border-transparent focus:border-emerald-500 focus:bg-white focus:ring-0 rounded-full px-4 py-2 text-sm outline-none transition-all"
+              className="flex-1 bg-gray-50 border border-gray-200 focus:border-emerald-500 focus:bg-white focus:ring-0 rounded-2xl px-4 py-2.5 text-sm outline-none transition-all resize-none overflow-y-auto"
               disabled={isLoading}
+              rows={Math.min(input.split('\n').length || 1, 4)} 
+              style={{ minHeight: '44px', maxHeight: '120px' }}
             />
-            <button type="submit" disabled={isLoading || !input.trim()} className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white p-2.5 rounded-full transition-all">
-              <Send size={16} />
+            <button type="submit" disabled={isLoading || !input.trim()} className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white p-2.5 rounded-full transition-all flex-shrink-0 mb-0.5">
+              <Send size={18} />
             </button>
           </form>
+
+
         </div>
       )}
 
