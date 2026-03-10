@@ -4,6 +4,8 @@ import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/f
 import { db } from '../firebase'; 
 import BookingModal from '../components/BookingModal'; 
 
+
+
 export default function HomePage() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
@@ -317,6 +319,13 @@ export default function HomePage() {
           Book Slot Now <ArrowRight size={20}/>
         </button>
       </div>
+
+
+      <div className="md:hidden fixed bottom-0 left-0 w-full p-4 ...">
+        {/* Mobile button code */}
+      </div>
+
+    
 
     </div>
   );
