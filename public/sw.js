@@ -1,21 +1,29 @@
-const CACHE_NAME = "edufill-cache-v1";
-const urlsToCache = ["/", "/index.html"];
+const CACHE_NAME = "edufill-cache-v2"; // Version change kiya taaki purana cache delete ho jaye
 
-// Install Service Worker
 self.addEventListener("install", (event) => {
+  self.skipWaiting(); // Naya update aate hi turant activate ho jaye
+});
+
+self.addEventListener("activate", (event) => {
+  // Purane saare kachre (cache) ko delete karne ka code
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
     })
   );
 });
 
-// Fetch Data (Keep real-time data fresh)
 self.addEventListener("fetch", (event) => {
+  // NETWORK-FIRST: Hamesha pehle naya code server se layega
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      // Agar cache me hai to wo do, nahi to internet se lao
-      return response || fetch(event.request);
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
     })
   );
 });
