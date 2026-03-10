@@ -3,6 +3,7 @@ import { HelpCircle, ShieldCheck, Clock, Smartphone, Zap, ArrowRight, Building, 
 import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase'; 
 import BookingModal from '../components/BookingModal'; 
+import Chatbot from '../components/Chatbot';
 
 
 
@@ -325,7 +326,7 @@ export default function HomePage() {
         {/* Mobile button code */}
       </div>
 
-    
+    <Chatbot />
 
     </div>
   );
