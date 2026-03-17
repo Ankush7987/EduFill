@@ -1,100 +1,232 @@
 import React, { useState } from 'react';
-import { PhoneCall, Home, Award, CheckCircle, ArrowRight, ShieldCheck, Star } from 'lucide-react';
-import CounsellingModal from './CounsellingModal'; // 🌟 NAYA IMPORT 🌟
+import { ArrowRight, PhoneCall, Home, Star, CheckCircle2, X, Loader2, Award } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase'; 
 
 export default function CounsellingSection() {
-  // 🌟 NAYA STATE LOGIC 🌟
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    studentName: '',
+    mobile: '',
+    examTarget: 'NEET', // Default value
+    score: ''
+  });
 
-  const handlePlanSelect = (planName) => {
-    setSelectedPlan(planName);
-    setIsModalOpen(true);
+  // 3 Professional Packages Data
+  const packages = [
+    {
+      id: 'tele',
+      title: 'Free Tele Consulting',
+      price: 'Free',
+      icon: <PhoneCall size={28} className="text-blue-500" />,
+      features: [
+        'Basic Profile Review',
+        '15-min Expert Phone Call',
+        'General Cutoff Idea',
+        'Doubt Clearing Session'
+      ],
+      cardStyle: 'bg-white border-2 border-gray-100 hover:border-blue-300',
+      textStyle: 'text-gray-900',
+      buttonStyle: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
+      badge: null
+    },
+    {
+      id: 'home',
+      title: 'Home Visit Guidance',
+      price: 'Standard',
+      icon: <Home size={28} className="text-amber-500" />,
+      features: [
+        'Face-to-Face Expert Guidance',
+        'Document Verification at Home',
+        'Personalized Preference List',
+        'Parents Counselling Session'
+      ],
+      cardStyle: 'bg-white border-2 border-amber-200 shadow-md hover:shadow-lg relative',
+      textStyle: 'text-gray-900',
+      buttonStyle: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+      badge: 'Most Popular'
+    },
+    {
+      id: 'premium',
+      title: 'Premium Plan (Paid)',
+      price: 'Premium',
+      icon: <Star size={28} className="text-yellow-400" />,
+      features: [
+        'End-to-End Admission Support',
+        'Priority Home Visits Included',
+        'Choice Filling done by Experts',
+        '24/7 Dedicated WhatsApp Support'
+      ],
+      cardStyle: 'bg-gradient-to-br from-indigo-900 to-purple-900 border-2 border-indigo-900 shadow-xl transform md:-translate-y-2',
+      textStyle: 'text-white',
+      buttonStyle: 'bg-white text-indigo-900 hover:bg-gray-100',
+      badge: 'Best Value'
+    }
+  ];
+
+  // Handle Form Submission to Firebase
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await addDoc(collection(db, "Counselling_Requests"), {
+        ...formData,
+        planSelected: selectedPlan.title,
+        status: 'New Request',
+        timestamp: serverTimestamp()
+      });
+      alert(`Success! Your request for ${selectedPlan.title} has been submitted. Our team will contact you soon.`);
+      setIsFormOpen(false);
+      setFormData({ studentName: '', mobile: '', examTarget: 'NEET', score: '' });
+    } catch (error) {
+      console.error("Error submitting form: ", error);
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openFormForPlan = (plan) => {
+    setSelectedPlan(plan);
+    setIsFormOpen(true);
   };
 
   return (
-    <section className="py-16 md:py-24 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
+    <div className="w-full flex flex-col items-center pb-10">
       
-      {/* 🌟 MODAL COMPONENT YAHAN ADD KIYA HAI 🌟 */}
-      <CounsellingModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        selectedPlan={selectedPlan} 
-      />
-
-      {/* Background Decorations */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-100/40 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-100/40 rounded-full blur-3xl"></div>
+      <div className="text-center mb-8">
+        <h2 className="text-2xl md:text-4xl font-black text-blue-950 mb-3 flex justify-center items-center gap-2">
+          <Award className="text-amber-500" size={32} /> Expert Counselling Plans
+        </h2>
+        <p className="text-gray-500 text-sm md:text-base font-medium max-w-lg mx-auto">
+          Maximize your chances of getting the best college. Choose a plan that fits your needs and let our experts guide you.
+        </p>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-sm font-extrabold text-emerald-600 tracking-wider uppercase bg-emerald-100 px-4 py-1.5 rounded-full mb-4 inline-block shadow-sm">
-            <Star size={14} className="inline mr-1 pb-0.5" /> Post-Exam Support
-          </span>
-          <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-6 leading-tight">
-            Stress-Free <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">Counselling & Admission</span>
-          </h2>
-          <p className="text-lg text-gray-600 font-medium">
-            Form bharna sirf shuruaat hai. Hamare experts aapko best college dilwane tak aapke saath khade rahenge. Apna plan chunein!
-          </p>
+      {/* HOW IT WORKS: 3 STEPS IN ONE LINE (Kept as you requested) */}
+      <div className="w-full max-w-4xl flex flex-row items-start justify-between gap-2 mb-12 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex flex-col items-center text-center flex-1">
+          <div className="w-8 h-8 md:w-12 md:h-12 shrink-0 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-sm md:text-xl mb-2 md:mb-3 shadow-sm border border-blue-100">1</div>
+          <h3 className="text-[10px] md:text-sm font-extrabold text-gray-900 leading-tight">Tell Us Your<br/>Score</h3>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-          
-          {/* Plan 1: Free Tele-Consulting */}
-          <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition-all hover:-translate-y-1 relative group">
-            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform"><PhoneCall size={28} /></div>
-            <h3 className="text-xl font-extrabold text-gray-900 mb-2">Tele-Consulting</h3>
-            <p className="text-gray-500 text-sm mb-6 h-10">Basic doubts and cut-off guidance over a phone call.</p>
-            <div className="mb-6"><span className="text-3xl font-black text-gray-900">Free</span></div>
-            <ul className="space-y-4 mb-8">
-              {['Expected Cut-off Information', 'College Prediction Overview', 'Basic Document Checklist', 'One-time Expert Call'].map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-3 text-sm font-medium text-gray-700"><CheckCircle size={18} className="text-emerald-500 flex-shrink-0 mt-0.5" /> {feature}</li>
-              ))}
-            </ul>
-            {/* 🌟 ONCLICK CHANGE KIYA HAI 🌟 */}
-            <button onClick={() => handlePlanSelect('Free Tele-Consulting')} className="w-full py-3.5 px-4 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded-xl font-bold transition-colors flex justify-center items-center gap-2">
-              Book Free Call
-            </button>
-          </div>
-
-          {/* Plan 2: Home Visit (Most Popular) */}
-          <div className="bg-gray-900 rounded-3xl p-8 shadow-2xl border border-gray-800 hover:shadow-emerald-900/20 transition-all hover:-translate-y-2 relative transform md:-translate-y-4">
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-emerald-400 to-emerald-600 text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest shadow-lg">Most Popular</div>
-            <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mb-6"><Home size={28} /></div>
-            <h3 className="text-xl font-extrabold text-white mb-2">Expert Home Visit</h3>
-            <p className="text-gray-400 text-sm mb-6 h-10">Personalized in-person guidance at your doorstep.</p>
-            <div className="mb-6 flex items-baseline gap-2"><span className="text-3xl font-black text-white">Paid</span><span className="text-sm font-medium text-gray-400">/visit</span></div>
-            <ul className="space-y-4 mb-8">
-              {['Physical Document Verification', 'State vs All India Quota Strategy', 'Personalized College Preference List', 'Doubt Clearing with Parents'].map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-3 text-sm font-medium text-gray-300"><CheckCircle size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" /> {feature}</li>
-              ))}
-            </ul>
-            <button onClick={() => handlePlanSelect('Expert Home Visit (Paid)')} className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-gray-900 rounded-xl font-black shadow-lg shadow-emerald-500/30 transition-all flex justify-center items-center gap-2">
-              Request Home Visit <ArrowRight size={18} />
-            </button>
-          </div>
-
-          {/* Plan 3: End-to-End Premium */}
-          <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-xl transition-all hover:-translate-y-1 relative group">
-            <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform"><Award size={28} /></div>
-            <h3 className="text-xl font-extrabold text-gray-900 mb-2">Premium Admission</h3>
-            <p className="text-gray-500 text-sm mb-6 h-10">Complete support until you secure your college seat.</p>
-            <div className="mb-6"><span className="text-3xl font-black text-gray-900">Premium</span></div>
-            <ul className="space-y-4 mb-8">
-              {['Dedicated Admission Counsellor', 'Choice Filling for All Rounds (1, 2, Mop-up)', 'Real-time Seat Upgradation Tracking', 'Priority 24/7 WhatsApp/Call Support'].map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-3 text-sm font-medium text-gray-700"><CheckCircle size={18} className="text-purple-500 flex-shrink-0 mt-0.5" /> {feature}</li>
-              ))}
-            </ul>
-            <button onClick={() => handlePlanSelect('End-to-End Premium Admission')} className="w-full py-3.5 px-4 bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white rounded-xl font-bold transition-colors flex justify-center items-center gap-2">
-              Get Premium Support
-            </button>
-          </div>
-
+        <div className="hidden sm:flex flex-1 h-[2px] bg-gray-100 mt-4 md:mt-6 mx-2 rounded-full relative">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 border-t-2 border-r-2 border-gray-300 rotate-45"></div>
+        </div>
+        <div className="flex flex-col items-center text-center flex-1">
+          <div className="w-8 h-8 md:w-12 md:h-12 shrink-0 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center font-black text-sm md:text-xl mb-2 md:mb-3 shadow-sm border border-amber-100">2</div>
+          <h3 className="text-[10px] md:text-sm font-extrabold text-gray-900 leading-tight">Get Preference<br/>List</h3>
+        </div>
+        <div className="hidden sm:flex flex-1 h-[2px] bg-gray-100 mt-4 md:mt-6 mx-2 rounded-full relative">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 border-t-2 border-r-2 border-gray-300 rotate-45"></div>
+        </div>
+        <div className="flex flex-col items-center text-center flex-1">
+          <div className="w-8 h-8 md:w-12 md:h-12 shrink-0 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-black text-sm md:text-xl mb-2 md:mb-3 shadow-sm border border-emerald-100">3</div>
+          <h3 className="text-[10px] md:text-sm font-extrabold text-gray-900 leading-tight">Secure Your<br/>College</h3>
         </div>
       </div>
-    </section>
+
+      {/* 🌟 PRICING / PACKAGES CARDS 🌟 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl px-2">
+        {packages.map((pkg) => (
+          <div key={pkg.id} className={`${pkg.cardStyle} rounded-3xl p-6 md:p-8 flex flex-col transition-all duration-300`}>
+            
+            {/* Badge if exists */}
+            {pkg.badge && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] md:text-xs font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-md whitespace-nowrap">
+                {pkg.badge}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
+                {pkg.icon}
+              </div>
+              <div>
+                <h3 className={`text-lg md:text-xl font-bold ${pkg.textStyle}`}>{pkg.title}</h3>
+                <span className={`text-sm font-extrabold opacity-80 ${pkg.textStyle}`}>{pkg.price}</span>
+              </div>
+            </div>
+
+            <ul className="space-y-4 mb-8 flex-1 mt-4">
+              {pkg.features.map((feature, idx) => (
+                <li key={idx} className={`flex items-start gap-3 text-sm font-medium ${pkg.textStyle === 'text-white' ? 'text-indigo-100' : 'text-gray-600'}`}>
+                  <CheckCircle2 size={18} className={`shrink-0 mt-0.5 ${pkg.textStyle === 'text-white' ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button 
+              onClick={() => openFormForPlan(pkg)}
+              className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-sm ${pkg.buttonStyle}`}
+            >
+              Select Plan <ArrowRight size={18} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 🌟 REQUEST FORM MODAL (Pops up when a package is clicked) 🌟 */}
+      {isFormOpen && selectedPlan && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-6 flex justify-between items-start text-white relative">
+              <div>
+                <span className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1 block">Applying For</span>
+                <h2 className="text-xl font-black">{selectedPlan.title}</h2>
+              </div>
+              <button onClick={() => setIsFormOpen(false)} className="bg-white/20 hover:bg-white/30 p-1.5 rounded-full transition-colors"><X size={20}/></button>
+            </div>
+
+            {/* Form Details */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Full Name</label>
+                <input type="text" required value={formData.studentName} onChange={e => setFormData({...formData, studentName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Enter name" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Mobile Number</label>
+                <input type="tel" maxLength="10" required value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit number" />
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Target Exam</label>
+                  <select value={formData.examTarget} onChange={e => setFormData({...formData, examTarget: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white">
+                    <option value="NEET">NEET UG</option>
+                    <option value="JEE">JEE Main</option>
+                    <option value="CUET">CUET</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Score</label>
+                  <input type="number" required value={formData.score} onChange={e => setFormData({...formData, score: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 620" />
+                </div>
+              </div>
+
+              <div className="pt-4 mt-2 border-t border-gray-100">
+                <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
+                  {loading ? <Loader2 className="animate-spin" size={24}/> : "Submit Request"}
+                </button>
+                <p className="text-center text-xs text-gray-400 font-medium mt-3">
+                  Our experts will verify your details and contact you shortly.
+                </p>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 }
