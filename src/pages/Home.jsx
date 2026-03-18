@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HelpCircle, ShieldCheck, Clock, Smartphone, Zap, ArrowRight, Building, FileWarning, X, CheckCircle, Loader2, Users, FileText, CheckSquare, Stethoscope, Calculator, BookOpen, GraduationCap, CheckCircle2, ChevronRight, MessageCircle, Star, Award, MapPin } from 'lucide-react';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase'; 
 import BookingModal from '../components/BookingModal'; 
 import Chatbot from '../components/Chatbot';
@@ -80,8 +80,8 @@ const examDetailsData = [
       'Domicile (Niwash) & Income Certificate (Aay Praman Patra)',
       'Caste Certificate (Jati Praman Patra) for scholarship benefits'
     ],
-    edufillPromise: 'No need to stand in long lines at cyber cafes during peak admission season. Send us your documents on WhatsApp from your home, and we will complete your registration, choice filling, and fee payment securely.',
-    actionType: 'whatsapp'
+    edufillPromise: 'No need to stand in long lines at cyber cafes during peak admission season. Send us your documents securely, and our dedicated agent will handle your registration, choice filling, and fee payment from start to finish.',
+    actionType: 'direct_12th' // 🌟 NAYA ACTION TYPE 🌟
   }
 ];
 
@@ -93,11 +93,65 @@ export default function HomePage() {
   const [isMissingModalOpen, setIsMissingModalOpen] = useState(false);
   const [isCounsellingModalOpen, setIsCounsellingModalOpen] = useState(false); 
   
+  // 🌟 12TH ADMISSION FORM STATE 🌟
+  const [is12thModalOpen, setIs12thModalOpen] = useState(false);
+  const [form12th, setForm12th] = useState({ studentName: '', mobile: '', marks12th: '', stream: 'PCM', expectedCourse: 'B.Sc' });
+  const [saving12th, setSaving12th] = useState(false);
+
   const [loadingCamp, setLoadingCamp] = useState(false);
   const [loadingMissing, setLoadingMissing] = useState(false);
 
   const [campForm, setCampForm] = useState({ instituteName: '', contactPerson: '', mobile: '', studentCount: '' });
   const [missingForm, setMissingForm] = useState({ studentName: '', mobile: '', missingItems: [] });
+
+  // 🌟 AUTO-ASSIGN 12TH AGENT AND SUBMIT FORM 🌟
+  const handle12thSubmit = async (e) => {
+    e.preventDefault();
+    setSaving12th(true);
+    try {
+      // 1. Agent dhundo jo 12th Admission karta ho
+      const q = query(collection(db, "Employees"), where("active", "==", true), where("agentCategory", "==", "12th Admission"));
+      const snap = await getDocs(q);
+      
+      let assignedAgent = "Unassigned";
+      
+      if (!snap.empty) {
+        let agents = [];
+        snap.forEach(d => agents.push({ id: d.id, ...d.data() }));
+        // Jis agent ke paas sabse kam bachhe hain use assign karo
+        agents.sort((a, b) => (a.assignedCount || 0) - (b.assignedCount || 0));
+        assignedAgent = agents[0].name;
+        
+        // Agent ka assign count badha do
+        await updateDoc(doc(db, "Employees", agents[0].id), { 
+          assignedCount: (agents[0].assignedCount || 0) + 1 
+        });
+      }
+
+      // 2. Form data Counselling_Requests me save karo taaki Admin Panel me dikhe
+      await addDoc(collection(db, "Counselling_Requests"), {
+        studentName: form12th.studentName,
+        mobile: form12th.mobile,
+        examTarget: '12th Admission',
+        score: form12th.marks12th + '%', // Score field me marks jayenge
+        stream: form12th.stream,
+        expectedCourse: form12th.expectedCourse,
+        planSelected: '12th Govt. Admission Support',
+        status: assignedAgent !== "Unassigned" ? 'Agent Assigned' : 'New Request',
+        assignedAgentName: assignedAgent !== "Unassigned" ? assignedAgent : null,
+        timestamp: serverTimestamp()
+      });
+
+      alert(`Success! Your details have been submitted.\nAssigned Agent: ${assignedAgent !== "Unassigned" ? assignedAgent : "Will be assigned shortly"}`);
+      setIs12thModalOpen(false);
+      setForm12th({ studentName: '', mobile: '', marks12th: '', stream: 'PCM', expectedCourse: 'B.Sc' });
+    } catch (error) {
+      console.error(error);
+      alert("Failed to submit request.");
+    } finally {
+      setSaving12th(false);
+    }
+  };
 
   const handleCampSubmit = async (e) => {
     e.preventDefault();
@@ -129,7 +183,7 @@ export default function HomePage() {
       
       <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} />
 
-      {/* 🌟 1. EXAM DETAILS MODAL 🌟 */}
+      {/* 🌟 EXAM DETAILS MODAL 🌟 */}
       {selectedExamInfo && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
@@ -172,6 +226,7 @@ export default function HomePage() {
                 <p className="text-sm text-gray-700 leading-relaxed">{selectedExamInfo.edufillPromise}</p>
               </div>
 
+              {/* 🌟 ACTION BUTTONS LOGIC UPDATE 🌟 */}
               <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
                 {selectedExamInfo.actionType === 'booking' ? (
                   <>
@@ -185,42 +240,101 @@ export default function HomePage() {
                       View Counselling Plans
                     </button>
                   </>
-                ) : (
-                  <button onClick={() => window.open('https://wa.me/919752519051?text=Hello...', '_blank')} className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-extrabold py-4 rounded-xl shadow-lg shadow-green-500/30 flex justify-center items-center gap-2 transition-all active:scale-95 text-lg">
-                    <MessageCircle size={22} className="fill-current"/> Apply via WhatsApp
+                ) : selectedExamInfo.actionType === 'direct_12th' ? (
+                  <button onClick={() => { 
+                    setSelectedExamInfo(null); 
+                    setIs12thModalOpen(true); // Open specialized 12th form
+                  }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-500/30 flex justify-center items-center gap-2 transition-all active:scale-95 text-lg">
+                    Proceed to Registration <ArrowRight size={22} />
                   </button>
-                )}
+                ) : null}
               </div>
+
             </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 2. UPDATED FULLY RESPONSIVE COUNSELLING MODAL WITH ANIMATION 🌟 */}
+      {/* 🌟 SPECIALIZED 12TH ADMISSION FORM MODAL 🌟 */}
+      {is12thModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+            
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 flex justify-between items-start text-white relative">
+              <div>
+                <span className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1 block">Registration</span>
+                <h2 className="text-xl font-black">12th Govt. Admission</h2>
+              </div>
+              <button onClick={() => setIs12thModalOpen(false)} className="bg-white/20 hover:bg-white/30 p-1.5 rounded-full transition-colors"><X size={20}/></button>
+            </div>
+
+            <form onSubmit={handle12thSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Full Name</label>
+                <input type="text" required value={form12th.studentName} onChange={e => setForm12th({...form12th, studentName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Enter your name" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Mobile Number</label>
+                <input type="tel" maxLength="10" required value={form12th.mobile} onChange={e => setForm12th({...form12th, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit number" />
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Stream</label>
+                  <select value={form12th.stream} onChange={e => setForm12th({...form12th, stream: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white">
+                    <option value="PCM">PCM (Maths)</option>
+                    <option value="PCB">PCB (Bio)</option>
+                    <option value="Commerce">Commerce</option>
+                    <option value="Arts">Arts</option>
+                    <option value="Agriculture">Agriculture</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Marks (%)</label>
+                  <input type="number" required value={form12th.marks12th} onChange={e => setForm12th({...form12th, marks12th: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 85" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Course</label>
+                <select value={form12th.expectedCourse} onChange={e => setForm12th({...form12th, expectedCourse: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white">
+                  <option value="B.Sc">B.Sc</option>
+                  <option value="B.Com">B.Com</option>
+                  <option value="B.A">B.A</option>
+                  <option value="BBA">BBA</option>
+                  <option value="BCA">BCA</option>
+                </select>
+              </div>
+
+              <div className="pt-4 mt-2 border-t border-gray-100">
+                <button type="submit" disabled={saving12th} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
+                  {saving12th ? <Loader2 className="animate-spin" size={24}/> : "Submit & Assign Agent"}
+                </button>
+                <p className="text-center text-xs text-gray-400 font-medium mt-3">
+                  An expert agent will be assigned instantly to handle your registration.
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* 🌟 COUNSELLING MODAL (Unchanged) 🌟 */}
       {isCounsellingModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center bg-gray-900/70 backdrop-blur-sm transition-opacity duration-300">
-          
           <div className="bg-white w-full h-[95vh] md:h-auto md:max-h-[95vh] md:max-w-6xl rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-full md:zoom-in-95 duration-500 ease-out">
-            
             <div className="sticky top-0 z-50 flex justify-between items-center p-4 md:p-0 border-b border-gray-100 bg-white/90 backdrop-blur-md md:absolute md:top-4 md:right-4 md:border-none md:bg-transparent">
               <h2 className="text-lg font-black text-gray-800 md:hidden ml-2">Counselling Plans</h2>
-              <button 
-                onClick={() => setIsCounsellingModalOpen(false)} 
-                className="bg-red-50 hover:bg-red-100 md:bg-white md:hover:bg-red-100 text-red-600 p-2 md:p-2.5 rounded-full transition-colors shadow-sm"
-              >
-                <X size={24} strokeWidth={2.5} />
-              </button>
+              <button onClick={() => setIsCounsellingModalOpen(false)} className="bg-red-50 hover:bg-red-100 md:bg-white md:hover:bg-red-100 text-red-600 p-2 md:p-2.5 rounded-full transition-colors shadow-sm"><X size={24} strokeWidth={2.5} /></button>
             </div>
-            
-            <div className="overflow-y-auto flex-1 p-2 md:p-8 md:pt-14">
-              <CounsellingSection />
-            </div>
-            
+            <div className="overflow-y-auto flex-1 p-2 md:p-8 md:pt-14"><CounsellingSection /></div>
           </div>
         </div>
       )}
 
-      {/* 🌟 3. DETAILED CAMP INFO MODAL 🌟 */}
+      {/* 🌟 DETAILED CAMP INFO MODAL (Unchanged) 🌟 */}
       {isCampDetailsOpen && ( 
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 md:p-4 bg-gray-900/90 backdrop-blur-sm">
           <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-3xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-300">
@@ -239,104 +353,48 @@ export default function HomePage() {
               <div className="mb-10">
                 <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2 border-b pb-3"><Award className="text-indigo-600"/> Facilities We Provide</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex gap-4 items-start">
-                    <div className="bg-emerald-100 p-3 rounded-xl text-emerald-600 shrink-0"><CheckCircle size={24}/></div>
-                    <div>
-                      <h4 className="font-bold text-gray-900">On-Spot Document Verification</h4>
-                      <p className="text-sm text-gray-500 mt-1">Our experts verify 10th/12th marksheets, Aadhar, and caste certificates on the spot to avoid last-minute rejections.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><FileText size={24}/></div>
-                    <div>
-                      <h4 className="font-bold text-gray-900">Live Form Filling Desk</h4>
-                      <p className="text-sm text-gray-500 mt-1">We set up computers/laptops directly in your premises. Students just walk in, sit, and get their forms filled instantly.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <div className="bg-amber-100 p-3 rounded-xl text-amber-600 shrink-0"><Users size={24}/></div>
-                    <div>
-                      <h4 className="font-bold text-gray-900">Instant Photography & Biometrics</h4>
-                      <p className="text-sm text-gray-500 mt-1">We bring portable studios for perfect passport/postcard photos and accurate thumb/finger impressions required by NTA.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <div className="bg-purple-100 p-3 rounded-xl text-purple-600 shrink-0"><MapPin size={24}/></div>
-                    <div>
-                      <h4 className="font-bold text-gray-900">Zero Travel Time</h4>
-                      <p className="text-sm text-gray-500 mt-1">Students save hours of travelling and waiting at local cafes. Everything happens within the safety of your institute.</p>
-                    </div>
-                  </div>
+                  <div className="flex gap-4 items-start"><div className="bg-emerald-100 p-3 rounded-xl text-emerald-600 shrink-0"><CheckCircle size={24}/></div><div><h4 className="font-bold text-gray-900">On-Spot Document Verification</h4><p className="text-sm text-gray-500 mt-1">Our experts verify 10th/12th marksheets, Aadhar, and caste certificates on the spot to avoid last-minute rejections.</p></div></div>
+                  <div className="flex gap-4 items-start"><div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><FileText size={24}/></div><div><h4 className="font-bold text-gray-900">Live Form Filling Desk</h4><p className="text-sm text-gray-500 mt-1">We set up computers/laptops directly in your premises. Students just walk in, sit, and get their forms filled instantly.</p></div></div>
+                  <div className="flex gap-4 items-start"><div className="bg-amber-100 p-3 rounded-xl text-amber-600 shrink-0"><Users size={24}/></div><div><h4 className="font-bold text-gray-900">Instant Photography & Biometrics</h4><p className="text-sm text-gray-500 mt-1">We bring portable studios for perfect passport/postcard photos and accurate thumb/finger impressions required by NTA.</p></div></div>
+                  <div className="flex gap-4 items-start"><div className="bg-purple-100 p-3 rounded-xl text-purple-600 shrink-0"><MapPin size={24}/></div><div><h4 className="font-bold text-gray-900">Zero Travel Time</h4><p className="text-sm text-gray-500 mt-1">Students save hours of travelling and waiting at local cafes. Everything happens within the safety of your institute.</p></div></div>
                 </div>
               </div>
 
               <div className="bg-gray-50 rounded-2xl p-6 md:p-8 text-center border border-gray-100">
                 <h3 className="text-lg font-bold text-gray-800 mb-2">Ready to save your students' time?</h3>
                 <p className="text-sm text-gray-500 mb-6">Fill a quick request form and our team will contact you to schedule dates.</p>
-                <button 
-                  onClick={() => { setIsCampDetailsOpen(false); setIsCampModalOpen(true); }} 
-                  className="w-full md:w-auto px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-xl shadow-lg flex items-center justify-center mx-auto gap-2 transition-all active:scale-95"
-                >
-                  Proceed to Request Form <ArrowRight size={20} />
-                </button>
+                <button onClick={() => { setIsCampDetailsOpen(false); setIsCampModalOpen(true); }} className="w-full md:w-auto px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-xl shadow-lg flex items-center justify-center mx-auto gap-2 transition-all active:scale-95">Proceed to Request Form <ArrowRight size={20} /></button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ACTUAL CAMP REQUEST FORM MODAL */}
+      {/* ACTUAL CAMP REQUEST FORM MODAL (Unchanged) */}
       {isCampModalOpen && ( 
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold flex items-center gap-2"><Building size={20} className="text-indigo-600"/> Request a Camp</h2>
-                <button onClick={()=>setIsCampModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-             </div>
-             
+             <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Building size={20} className="text-indigo-600"/> Request a Camp</h2><button onClick={()=>setIsCampModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
              <form onSubmit={handleCampSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Institute Name</label>
-                  <input type="text" required value={campForm.instituteName} onChange={e => setCampForm({...campForm, instituteName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. Ribosome Institute" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Person Name</label>
-                  <input type="text" required value={campForm.contactPerson} onChange={e => setCampForm({...campForm, contactPerson: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Your Name" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Number</label>
-                  <input type="tel" maxLength="10" required value={campForm.mobile} onChange={e => setCampForm({...campForm, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit mobile number" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Estimated Students</label>
-                  <input type="number" required value={campForm.studentCount} onChange={e => setCampForm({...campForm, studentCount: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Approx. count" />
-                </div>
-                
-                <div className="pt-4">
-                  <button type="submit" disabled={loadingCamp} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex justify-center items-center">
-                    {loadingCamp ? <Loader2 className="animate-spin" size={20}/> : "Submit Request"}
-                  </button>
-                </div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Institute Name</label><input type="text" required value={campForm.instituteName} onChange={e => setCampForm({...campForm, instituteName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. Ribosome Institute" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Person Name</label><input type="text" required value={campForm.contactPerson} onChange={e => setCampForm({...campForm, contactPerson: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Your Name" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Number</label><input type="tel" maxLength="10" required value={campForm.mobile} onChange={e => setCampForm({...campForm, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit mobile number" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Estimated Students</label><input type="number" required value={campForm.studentCount} onChange={e => setCampForm({...campForm, studentCount: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Approx. count" /></div>
+                <div className="pt-4"><button type="submit" disabled={loadingCamp} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex justify-center items-center">{loadingCamp ? <Loader2 className="animate-spin" size={20}/> : "Submit Request"}</button></div>
              </form>
            </div>
         </div>
       )}
 
-      {/* MISSING ITEMS MODAL */}
+      {/* MISSING ITEMS MODAL (Unchanged) */}
       {isMissingModalOpen && ( 
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-amber-500 p-5 flex justify-between items-center text-white">
-              <h2 className="text-lg font-bold flex items-center gap-2"><FileWarning size={20}/> Report Missing Item</h2>
-              <button onClick={() => setIsMissingModalOpen(false)} className="bg-white/20 p-1.5 rounded-full"><X size={20}/></button>
-            </div>
+            <div className="bg-amber-500 p-5 flex justify-between items-center text-white"><h2 className="text-lg font-bold flex items-center gap-2"><FileWarning size={20}/> Report Missing Item</h2><button onClick={() => setIsMissingModalOpen(false)} className="bg-white/20 p-1.5 rounded-full"><X size={20}/></button></div>
             <form onSubmit={handleMissingSubmit} className="p-5 space-y-4">
               <div><label className="block text-xs font-bold text-gray-600 mb-1">Your Full Name</label><input type="text" required value={missingForm.studentName} onChange={e => setMissingForm({...missingForm, studentName: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div>
               <div><label className="block text-xs font-bold text-gray-600 mb-1">Mobile Number</label><input type="tel" maxLength="10" required value={missingForm.mobile} onChange={e => setMissingForm({...missingForm, mobile: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div>
-              <div className="flex gap-3">
-                <label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Passport Photo')} className="mr-2"/> Passport Photo</label>
-                <label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Confirmation Page')} className="mr-2"/> Confirmation Page</label>
-              </div>
+              <div className="flex gap-3"><label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Passport Photo')} className="mr-2"/> Passport Photo</label><label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Confirmation Page')} className="mr-2"/> Confirmation Page</label></div>
               <button type="submit" className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-xl shadow-md">Submit Report</button>
             </form>
           </div>
@@ -374,32 +432,18 @@ export default function HomePage() {
         {/* EXAM SELECTION GRID */}
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
           {examDetailsData.map((exam) => (
-            <div 
-              key={exam.id} 
-              onClick={() => setSelectedExamInfo(exam)}
-              className="bg-white border-2 border-gray-100 hover:border-transparent rounded-3xl p-5 cursor-pointer group hover:shadow-2xl transition-all duration-300 relative overflow-hidden"
-            >
+            <div key={exam.id} onClick={() => setSelectedExamInfo(exam)} className="bg-white border-2 border-gray-100 hover:border-transparent rounded-3xl p-5 cursor-pointer group hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
               <div className={`absolute inset-0 bg-gradient-to-r ${exam.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10`}></div>
               <div className="absolute inset-[2px] bg-white rounded-[22px] -z-10"></div>
-
-              {exam.id === 'after12th' && (
-                <div className="absolute top-4 right-4 bg-red-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full animate-pulse">
-                  NEW
-                </div>
-              )}
-
+              {exam.id === 'after12th' && <div className="absolute top-4 right-4 bg-red-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full animate-pulse">NEW</div>}
               <div className="flex items-start gap-4">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${exam.lightBg} ${exam.textColor} group-hover:scale-110 transition-transform duration-300`}>
-                  {exam.icon}
-                </div>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${exam.lightBg} ${exam.textColor} group-hover:scale-110 transition-transform duration-300`}>{exam.icon}</div>
                 <div className="flex-1">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 block mb-0.5">{exam.tag}</span>
                   <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-gray-900 group-hover:to-gray-600">{exam.title}</h3>
                   <p className="text-xs text-gray-500 line-clamp-2 font-medium">{exam.desc}</p>
                 </div>
-                <div className="shrink-0 mt-4 text-gray-300 group-hover:text-gray-900 transition-colors">
-                  <ChevronRight size={24} />
-                </div>
+                <div className="shrink-0 mt-4 text-gray-300 group-hover:text-gray-900 transition-colors"><ChevronRight size={24} /></div>
               </div>
             </div>
           ))}
@@ -416,9 +460,7 @@ export default function HomePage() {
               Are you an institute? Click here to see how our on-campus form-filling drive can save your students' precious study time.
             </p>
           </div>
-          <button
-            className="relative z-10 whitespace-nowrap bg-white text-indigo-700 hover:bg-indigo-50 font-extrabold py-3 px-6 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2 pointer-events-none md:pointer-events-auto"
-          >
+          <button className="relative z-10 whitespace-nowrap bg-white text-indigo-700 hover:bg-indigo-50 font-extrabold py-3 px-6 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2 pointer-events-none md:pointer-events-auto">
             See Details <ArrowRight size={18} />
           </button>
         </div>
@@ -431,27 +473,9 @@ export default function HomePage() {
         <div className="w-full mb-12">
           <p className="text-center text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-6">How EduFill Works</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4">
-              <div className="w-10 h-10 shrink-0 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-lg">1</div>
-              <div>
-                <h3 className="font-bold text-gray-900 mb-1">Book a Slot</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">Enter your details. A dedicated expert will be assigned to you instantly.</p>
-              </div>
-            </div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4">
-              <div className="w-10 h-10 shrink-0 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center font-black text-lg">2</div>
-              <div>
-                <h3 className="font-bold text-gray-900 mb-1">Upload Securely</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">Click a photo of your documents. AI auto-crops & converts them to PDF.</p>
-              </div>
-            </div>
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4">
-              <div className="w-10 h-10 shrink-0 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-black text-lg">3</div>
-              <div>
-                <h3 className="font-bold text-gray-900 mb-1">Relax & Track</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">Your expert fills the form error-free. Get confirmation directly on WhatsApp.</p>
-              </div>
-            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4"><div className="w-10 h-10 shrink-0 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-lg">1</div><div><h3 className="font-bold text-gray-900 mb-1">Book a Slot</h3><p className="text-xs text-gray-500 leading-relaxed">Enter your details. A dedicated expert will be assigned to you instantly.</p></div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4"><div className="w-10 h-10 shrink-0 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center font-black text-lg">2</div><div><h3 className="font-bold text-gray-900 mb-1">Upload Securely</h3><p className="text-xs text-gray-500 leading-relaxed">Click a photo of your documents. AI auto-crops & converts them to PDF.</p></div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4"><div className="w-10 h-10 shrink-0 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-black text-lg">3</div><div><h3 className="font-bold text-gray-900 mb-1">Relax & Track</h3><p className="text-xs text-gray-500 leading-relaxed">Your expert fills the form error-free. Get confirmation directly on WhatsApp.</p></div></div>
           </div>
         </div>
 
@@ -459,42 +483,20 @@ export default function HomePage() {
         <div className="w-full bg-gradient-to-r from-blue-900 to-indigo-900 rounded-3xl p-6 md:p-8 text-white shadow-xl mb-12">
           <h3 className="text-center font-bold text-lg mb-6">Why Students Choose EduFill</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 text-center">
-            <div className="flex flex-col items-center">
-              <ShieldCheck size={32} className="text-emerald-400 mb-2"/>
-              <p className="text-xs md:text-sm font-bold">100% Error Free</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <Clock size={32} className="text-amber-400 mb-2"/>
-              <p className="text-xs md:text-sm font-bold">Saves 3+ Hours</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <Smartphone size={32} className="text-blue-300 mb-2"/>
-              <p className="text-xs md:text-sm font-bold">Mobile Friendly</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <Zap size={32} className="text-yellow-400 mb-2"/>
-              <p className="text-xs md:text-sm font-bold">Expert Support</p>
-            </div>
+            <div className="flex flex-col items-center"><ShieldCheck size={32} className="text-emerald-400 mb-2"/><p className="text-xs md:text-sm font-bold">100% Error Free</p></div>
+            <div className="flex flex-col items-center"><Clock size={32} className="text-amber-400 mb-2"/><p className="text-xs md:text-sm font-bold">Saves 3+ Hours</p></div>
+            <div className="flex flex-col items-center"><Smartphone size={32} className="text-blue-300 mb-2"/><p className="text-xs md:text-sm font-bold">Mobile Friendly</p></div>
+            <div className="flex flex-col items-center"><Zap size={32} className="text-yellow-400 mb-2"/><p className="text-xs md:text-sm font-bold">Expert Support</p></div>
           </div>
         </div>
 
       </main>
 
-      {/* COPYRIGHT FOOTER */}
       <footer className="w-full border-t border-gray-200 bg-gray-50 py-8 text-center mt-auto">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="relative w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center shadow-sm">
-            <span className="font-black text-white text-[8px] tracking-tighter">EF</span>
-          </div>
-          <span className="font-bold text-gray-500 text-sm">EduFill Solutions</span>
-        </div>
-        <p className="text-xs font-medium text-gray-400">
-          © {new Date().getFullYear()} EduFill. All Rights Reserved.
-        </p>
+        <div className="flex items-center justify-center gap-2 mb-2"><div className="relative w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center shadow-sm"><span className="font-black text-white text-[8px] tracking-tighter">EF</span></div><span className="font-bold text-gray-500 text-sm">EduFill Solutions</span></div>
+        <p className="text-xs font-medium text-gray-400">© {new Date().getFullYear()} EduFill. All Rights Reserved.</p>
       </footer>
-
       <Chatbot />
-
     </div>
   );
 }

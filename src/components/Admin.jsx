@@ -19,8 +19,7 @@ import TeamTab from './admin/tabs/TeamTab';
 import MissingTab from './admin/tabs/MissingTab';
 import CampTab from './admin/tabs/CampTab';
 import SettingsTab from './admin/tabs/SettingsTab';
-import CounsellingLeads from '../components/CounsellingLeads'; // 🌟 NAYA COUNSELLING COMPONENT IMPORT 🌟
-
+import CounsellingLeads from '../components/CounsellingLeads'; 
 
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -67,7 +66,14 @@ export default function AdminPanel() {
   const replaceImgRef = useRef(null);
 
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
-  const [empForm, setEmpForm] = useState({ name: '', pin: '', institute: 'Ribosome Institute' });
+  
+  const [empForm, setEmpForm] = useState({ 
+    name: '', 
+    pin: '', 
+    institute: 'Ribosome Institute', 
+    agentRole: 'Form Filling (NEET/JEE)' 
+  });
+  
   const [savingEmp, setSavingEmp] = useState(false);
 
   useEffect(() => {
@@ -137,8 +143,17 @@ export default function AdminPanel() {
     e.preventDefault();
     setSavingEmp(true);
     try {
-      await addDoc(collection(db, 'Employees'), { name: empForm.name, pin: empForm.pin, institute: empForm.institute, role: 'agent', assignedCount: 0, active: true });
-      setIsEmployeeModalOpen(false); setEmpForm({ name: '', pin: '', institute: 'Ribosome Institute' }); alert("Employee Added!");
+      await addDoc(collection(db, 'Employees'), { 
+        name: empForm.name, 
+        pin: empForm.pin, 
+        institute: empForm.institute, 
+        role: empForm.agentRole,
+        assignedCount: 0, 
+        active: true 
+      });
+      setIsEmployeeModalOpen(false); 
+      setEmpForm({ name: '', pin: '', institute: 'Ribosome Institute', agentRole: 'Form Filling (NEET/JEE)' }); 
+      alert("Employee Added!");
     } catch (err) { console.error(err); } finally { setSavingEmp(false); }
   };
 
@@ -191,7 +206,6 @@ export default function AdminPanel() {
   const getDownloadUrl = (url) => { if (!url) return ''; if (url.includes('res.cloudinary.com')) return `${url.split('/upload/')[0]}/upload/fl_attachment/${url.split('/upload/')[1]}`; return url; };
   const formatTime = (t) => { if (!t) return "Just Now"; if (typeof t.toDate !== 'function') return "Processing..."; return t.toDate().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }); };
 
-  // --- Document Replacement Logistics ---
   const processPassportPhoto = async (croppedBlob, name) => {
     const finalBlob = croppedBlob; 
     const imageBmp = await createImageBitmap(finalBlob);
@@ -221,7 +235,6 @@ export default function AdminPanel() {
     } catch (err) { console.error(err); } finally { setReplacingDoc(null); }
   };
 
-  // --- Filtering & Calculations ---
   const allAgentsList = [...new Set([...employees.map(e => e.name), ...bookings.map(b => b.assignedTo).filter(a => a && a !== 'Unassigned')])].sort();
   const approvedInstitutesList = [...new Set(campRequests.filter(c => c.status === 'Completed').map(c => c.instituteName))].filter(n => n !== 'Ribosome Institute' && n !== 'Unacademy');
   
@@ -234,7 +247,53 @@ export default function AdminPanel() {
   });
 
   const clearFilters = () => { setSearchQuery(''); setDateFilter(''); setActiveFilter('All'); setAgentFilter('All'); };
-  const exportToExcel = () => { /* Export Logic Here */ };
+  
+  // 🌟 NAYA: EXPORT TO EXCEL / CSV LOGIC 🌟
+  const exportToExcel = () => {
+    if (filteredBookings.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+
+    // CSV Headers
+    const headers = [
+      "Token Number", "Full Name", "Mobile", "Category", 
+      "Exam/Target", "Institute", "Batch", "Status", 
+      "Application No", "Payment Status", "Assigned Agent", "Booking Date"
+    ];
+
+    // Map the filtered bookings to CSV row format
+    const csvRows = filteredBookings.map(b => {
+      return [
+        b.tokenNumber || 'N/A',
+        `"${b.fullName || ''}"`, // Quotes to handle commas in names
+        b.mobile || '',
+        b.category || '',
+        b.examTarget || b.exam || '',
+        b.institute || '',
+        `"${b.batchName || ''}"`,
+        b.status || '',
+        b.applicationNumber || '',
+        b.paymentStatus || '',
+        b.assignedTo || 'Unassigned',
+        b.slotDate || ''
+      ].join(',');
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+
+    // Create a Blob and trigger the download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `EduFill_Leads_${new Date().toLocaleDateString('en-IN').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   const pendingCount = filteredBookings.filter(b => b.status === 'Pending').length;
   const completedCount = filteredBookings.filter(b => b.status === 'Completed').length;
@@ -261,21 +320,51 @@ export default function AdminPanel() {
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutesList} />
 
+      {/* 🌟 EMPLOYEE CREATION MODAL 🌟 */}
       {isEmployeeModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in duration-300">
             <button onClick={() => setIsEmployeeModalOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-red-500"><X size={20}/></button>
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-4"><UserPlus className="text-indigo-500"/> Add New Agent</h2>
+            
             <form onSubmit={handleAddEmployee} className="space-y-4">
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Agent Full Name</label><input type="text" required value={empForm.name} onChange={e => setEmpForm({...empForm, name: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2" /></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Secret PIN (4-Digits)</label><input type="text" required maxLength="4" pattern="\d{4}" value={empForm.pin} onChange={e => setEmpForm({...empForm, pin: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 font-mono tracking-widest" /></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Assigned Institute</label>
-                <select value={empForm.institute} onChange={e => setEmpForm({...empForm, institute: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 bg-white">
-                  <option value="Ribosome Institute">Ribosome Institute</option><option value="Unacademy">Unacademy</option><option value="Others">Others</option>{approvedInstitutesList.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Agent Full Name</label>
+                <input type="text" required value={empForm.name} onChange={e => setEmpForm({...empForm, name: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Secret PIN (4-Digits)</label>
+                <input type="text" required maxLength="4" pattern="\d{4}" value={empForm.pin} onChange={e => setEmpForm({...empForm, pin: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 font-mono tracking-widest" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Agent Role (Task)</label>
+                <select 
+                  value={empForm.agentRole} 
+                  onChange={e => setEmpForm({...empForm, agentRole: e.target.value})} 
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2 bg-white"
+                >
+                  <option value="Form Filling (NEET/JEE)">Form Filling & Camps (NEET/JEE/CUET)</option>
+                  <option value="12th Counselling">12th College Counselling</option>
                 </select>
               </div>
-              <button disabled={savingEmp} type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md flex justify-center items-center gap-2">{savingEmp ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>} Save Agent</button>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Assigned Institute</label>
+                <select value={empForm.institute} onChange={e => setEmpForm({...empForm, institute: e.target.value})} className="w-full border border-gray-300 rounded-xl px-4 py-2 bg-white">
+                  <option value="Ribosome Institute">Ribosome Institute</option>
+                  <option value="Unacademy">Unacademy</option>
+                  <option value="Others">Others</option>
+                  {approvedInstitutesList.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+                </select>
+              </div>
+
+              <button disabled={savingEmp} type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md flex justify-center items-center gap-2">
+                {savingEmp ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>} Save Agent
+              </button>
             </form>
+
           </div>
         </div>
       )}
@@ -333,7 +422,6 @@ export default function AdminPanel() {
         <nav className="flex-1 p-4 space-y-3 mt-2 overflow-y-auto">
           <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><LayoutDashboard size={20}/> Dashboard</button>
           
-          {/* 🌟 NAYA COUNSELLING LEADS BUTTON YAHAN ADD KIYA HAI 🌟 */}
           <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Headphones size={20}/> Counselling Leads</button>
 
           <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><div className="flex items-center gap-3"><FileWarning size={20}/> Missing Items</div>{pendingMissingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{pendingMissingCount}</span>}</button>
@@ -366,7 +454,7 @@ export default function AdminPanel() {
           />
         )}
 
-        {/* 🌟 NAYA COUNSELLING TAB RENDER YAHAN HOGA 🌟 */}
+        {/* 🌟 COUNSELLING TAB RENDER 🌟 */}
         {activeTab === 'counselling' && (
           <CounsellingLeads />
         )}

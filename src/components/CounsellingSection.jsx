@@ -107,7 +107,7 @@ export default function CounsellingSection() {
         </p>
       </div>
 
-      {/* HOW IT WORKS: 3 STEPS IN ONE LINE (Kept as you requested) */}
+      {/* HOW IT WORKS: 3 STEPS IN ONE LINE */}
       <div className="w-full max-w-4xl flex flex-row items-start justify-between gap-2 mb-12 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex flex-col items-center text-center flex-1">
           <div className="w-8 h-8 md:w-12 md:h-12 shrink-0 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-sm md:text-xl mb-2 md:mb-3 shadow-sm border border-blue-100">1</div>
@@ -170,7 +170,7 @@ export default function CounsellingSection() {
         ))}
       </div>
 
-      {/* 🌟 REQUEST FORM MODAL (Pops up when a package is clicked) 🌟 */}
+      {/* 🌟 REQUEST FORM MODAL 🌟 */}
       {isFormOpen && selectedPlan && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
@@ -204,12 +204,14 @@ export default function CounsellingSection() {
                     <option value="NEET">NEET UG</option>
                     <option value="JEE">JEE Main</option>
                     <option value="CUET">CUET</option>
+                    {/* 🌟 12th Admission Option Added Here 🌟 */}
+                    <option value="12th Admission">12th/Govt. Admission</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Score</label>
-                  <input type="number" required value={formData.score} onChange={e => setFormData({...formData, score: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 620" />
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Score/%</label>
+                  <input type="text" required value={formData.score} onChange={e => setFormData({...formData, score: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 620 or 85%" />
                 </div>
               </div>
 

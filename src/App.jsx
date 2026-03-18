@@ -5,6 +5,7 @@ import AdminPanel from './components/Admin';
 // 🌟 NAYA IMPORT: Agent Panel 🌟
 import AgentPanel from './components/AgentPanel';
 
+
 export default function App() {
   return (
     <Router>
@@ -17,6 +18,7 @@ export default function App() {
         
         {/* 🌟 NAYA ROUTE: Employee Agent Panel 🌟 */}
         <Route path="/agent" element={<AgentPanel />} />
+        
       </Routes>
     </Router>
   );

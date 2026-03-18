@@ -1,86 +1,146 @@
-import React from 'react';
-import { Shield, UserPlus, Building, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { UserPlus, Shield, Trash2, Building, Briefcase, Hash, Filter } from 'lucide-react';
 
-export default function TeamTab({ employees, empInstituteFilter, setEmpInstituteFilter, approvedInstitutesList, setIsEmployeeModalOpen, deleteEmployee }) {
+export default function TeamTab({ 
+  employees, 
+  empInstituteFilter, 
+  setEmpInstituteFilter, 
+  approvedInstitutesList, 
+  setIsEmployeeModalOpen, 
+  deleteEmployee 
+}) {
+  
+  // 🌟 NAYA STATE: Role Filter ke liye 🌟
+  const [roleFilter, setRoleFilter] = useState('All');
+
+  // Filter Employees based on BOTH Institute AND Role
   const filteredEmployees = employees.filter(emp => {
-    if (empInstituteFilter === 'All') return true;
-    return emp.institute === empInstituteFilter;
+    const matchInstitute = empInstituteFilter === 'All' || emp.institute === empInstituteFilter;
+    const matchRole = roleFilter === 'All' || emp.role === roleFilter;
+    
+    return matchInstitute && matchRole;
   });
 
   return (
-    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-      <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6 md:mb-10">
+    <div className="animation-fade-in">
+      
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">Agent Management</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">Manage team, pins, and track who is Online.</p>
+          <h2 className="text-2xl md:text-3xl font-black text-gray-900 flex items-center gap-2">
+            <Shield className="text-blue-600" size={32} /> Team & Agents
+          </h2>
+          <p className="text-gray-500 font-medium mt-1">Manage your form filling and counselling team</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-            <div className="relative w-full sm:w-48">
-              <Building size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <select
-                value={empInstituteFilter}
-                onChange={(e) => setEmpInstituteFilter(e.target.value)}
-                className="w-full bg-white border border-gray-300 text-gray-700 rounded-full pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer appearance-none shadow-sm"
-              >
-                <option value="All">All Institutes</option>
-                <option value="Ribosome Institute">Ribosome Institute</option>
-                <option value="Unacademy">Unacademy</option>
-                <option value="Others">Others</option>
-                {approvedInstitutesList.map(inst => <option key={inst} value={inst}>{inst}</option>)}
-              </select>
-            </div>
-            
-            <button onClick={() => setIsEmployeeModalOpen(true)} className="flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full shadow-lg transition-all font-bold w-full sm:w-auto">
-              <UserPlus size={18} /> Add New Agent
-            </button>
-        </div>
-      </header>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          
+          {/* 🌟 NAYA FILTER UI: Agent Role 🌟 */}
+          <div className="relative">
+            <select 
+              className="w-full sm:w-auto appearance-none border-2 border-gray-200 rounded-xl pl-10 pr-8 py-2.5 font-bold text-gray-700 bg-white outline-none focus:border-blue-500 transition-colors"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="All">All Roles</option>
+              <option value="Form Filling (NEET/JEE)">NEET/JEE Forms</option>
+              <option value="12th Counselling">12th Counselling</option>
+            </select>
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 md:p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
-          <Shield className="text-indigo-500" size={20} />
-          <h2 className="text-lg md:text-xl font-bold text-gray-800">Active Team Members</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs md:text-sm uppercase tracking-wider border-b border-gray-100">
-                <th className="p-3 md:p-4 font-semibold">Agent Info</th>
-                <th className="p-3 md:p-4 font-semibold">Login PIN</th>
-                <th className="p-3 md:p-4 font-semibold">Assigned Institute</th>
-                <th className="p-3 md:p-4 font-semibold">Forms Assigned</th>
-                <th className="p-3 md:p-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredEmployees.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-500 font-medium">No agents found for this selection.</td></tr>
-              ) : (
-                filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-3 md:p-4">
-                      <p className="font-bold text-gray-900 text-base">{emp.name}</p>
-                      {/* 🌟 NAYA: DYNAMIC ONLINE/OFFLINE BADGE 🌟 */}
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full mt-1 inline-block font-bold ${emp.active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        {emp.active ? '🟢 Online' : '🔴 On Break (Offline)'}
-                      </span>
-                    </td>
-                    <td className="p-3 md:p-4"><span className="font-mono bg-gray-100 px-3 py-1 rounded text-gray-800 font-bold tracking-widest">{emp.pin}</span></td>
-                    <td className="p-3 md:p-4"><span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-200">{emp.institute}</span></td>
-                    <td className="p-3 md:p-4">
-                      <div className="flex items-center gap-2"><span className="text-lg font-black text-gray-800">{emp.assignedCount || 0}</span><span className="text-xs text-gray-500">assigned</span></div>
-                    </td>
-                    <td className="p-3 md:p-4 text-right">
-                      <button onClick={() => deleteEmployee(emp.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-100"><Trash2 size={16}/></button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          {/* Existing Institute Filter */}
+          <div className="relative">
+            <select 
+              className="w-full sm:w-auto appearance-none border-2 border-gray-200 rounded-xl pl-10 pr-8 py-2.5 font-bold text-gray-700 bg-white outline-none focus:border-blue-500 transition-colors"
+              value={empInstituteFilter}
+              onChange={(e) => setEmpInstituteFilter(e.target.value)}
+            >
+              <option value="All">All Institutes</option>
+              <option value="Ribosome Institute">Ribosome Institute</option>
+              <option value="Unacademy">Unacademy</option>
+              <option value="Others">Others</option>
+              {approvedInstitutesList.map(inst => (
+                <option key={inst} value={inst}>{inst}</option>
+              ))}
+            </select>
+            <Building size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+          
+          <button 
+            onClick={() => setIsEmployeeModalOpen(true)} 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md whitespace-nowrap"
+          >
+            <UserPlus size={18} /> Add New Agent
+          </button>
         </div>
       </div>
+
+      {/* Agents Grid/List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredEmployees.length === 0 ? (
+          <div className="col-span-full bg-white p-8 rounded-2xl border border-gray-200 text-center text-gray-500 font-medium shadow-sm">
+            No agents found matching your filters.
+          </div>
+        ) : (
+          filteredEmployees.map((emp) => (
+            <div key={emp.id} className="bg-white rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-200 shadow-sm hover:shadow-md transition-all relative group">
+              
+              {/* Delete Button (Visible on hover) */}
+              <button 
+                onClick={() => deleteEmployee(emp.id)}
+                className="absolute top-4 right-4 text-gray-300 hover:text-red-500 bg-gray-50 hover:bg-red-50 p-2 rounded-full transition-colors opacity-100 md:opacity-0 group-hover:opacity-100"
+                title="Remove Agent"
+              >
+                <Trash2 size={18} />
+              </button>
+
+              {/* Agent Info */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-xl border border-blue-100 uppercase">
+                  {emp.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-gray-900 leading-tight">{emp.name}</h3>
+                  
+                  {/* Category Badge */}
+                  <div className="mt-1.5">
+                    {emp.role === '12th Counselling' ? (
+                      <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                        12th Counselling
+                      </span>
+                    ) : (
+                      <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                        NEET/JEE Forms
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                  <Hash size={16} className="text-gray-400" />
+                  <span className="text-gray-400">Login PIN:</span> 
+                  <span className="font-mono font-bold text-gray-900 tracking-widest">{emp.pin}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                  <Building size={16} className="text-gray-400" />
+                  <span className="text-gray-400">Institute:</span> 
+                  <span className="font-bold text-gray-900 truncate">{emp.institute}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                  <Briefcase size={16} className="text-gray-400" />
+                  <span className="text-gray-400">Total Assigned:</span> 
+                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{emp.assignedCount || 0} Students</span>
+                </div>
+              </div>
+
+            </div>
+          ))
+        )}
+      </div>
+
     </div>
   );
 }
