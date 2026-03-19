@@ -1,5 +1,6 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth"; // NAYA: Auth import kiya user authentication ke liye
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore"; 
 import { getStorage } from "firebase/storage"; // NAYA: Storage import kiya documents ke liye
@@ -23,3 +24,6 @@ export const db = getFirestore(app);
 
 // Initialize Storage aur export karein (Photos aur PDFs save karne ke liye)
 export const storage = getStorage(app);
+
+//Initialize Auth aur export karein (User authentication ke liye)
+export const auth = getAuth(app);

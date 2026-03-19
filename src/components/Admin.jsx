@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones } from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones, Users, ShieldCheck, ShieldAlert, Trash2, Search, Sparkles } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -36,6 +36,12 @@ export default function AdminPanel() {
   const [liveExams, setLiveExams] = useState({ neet: true, jee: false, cuet: false });
   const [loading, setLoading] = useState(true);
   
+  const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+
+  // 🌟 NAYA STATE: PREDICTOR LEADS KE LIYE 🌟
+  const [predictorLeads, setPredictorLeads] = useState([]);
+
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [searchQuery, setSearchQuery] = useState(''); 
   const [dateFilter, setDateFilter] = useState(''); 
@@ -126,7 +132,24 @@ export default function AdminPanel() {
       setEmployees(empData);
     });
 
-    return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); unsubEmp(); };
+    const qUsers = query(collection(db, 'Users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      const usersData = [];
+      snapshot.forEach(doc => usersData.push({ id: doc.id, ...doc.data() }));
+      usersData.sort((a, b) => (b.createdAt?.toMillis() || Date.now()) - (a.createdAt?.toMillis() || Date.now()));
+      setRegisteredUsers(usersData);
+    });
+
+    // 🌟 NAYA: FETCH PREDICTOR LEADS FROM DB 🌟
+    const qPredictor = query(collection(db, 'Predictor_Requests'));
+    const unsubPredictor = onSnapshot(qPredictor, (snapshot) => {
+      const leadsData = [];
+      snapshot.forEach(doc => leadsData.push({ id: doc.id, ...doc.data() }));
+      leadsData.sort((a, b) => (b.timestamp?.toMillis() || Date.now()) - (a.timestamp?.toMillis() || Date.now()));
+      setPredictorLeads(leadsData);
+    });
+
+    return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); unsubEmp(); unsubUsers(); unsubPredictor(); };
   }, [isAuthenticated]);
 
   const handleLogin = (e) => {
@@ -159,6 +182,29 @@ export default function AdminPanel() {
 
   const deleteEmployee = async (id) => {
     if(window.confirm("Remove employee?")) { try { await deleteDoc(doc(db, "Employees", id)); } catch (err) { console.error(err); } }
+  };
+
+  const deleteRegisteredUser = async (id, name) => {
+    if(window.confirm(`Delete ${name}'s account permanently?`)) { 
+      try { await deleteDoc(doc(db, "Users", id)); } catch (err) { console.error(err); } 
+    }
+  };
+
+  const toggleUserRole = async (id, currentRole) => {
+    const newRole = currentRole === 'admin' ? 'student' : 'admin';
+    try { await updateDoc(doc(db, "Users", id), { role: newRole }); } catch (error) { console.error(error); }
+  };
+
+  // 🌟 NAYA: PREDICTOR LEAD HANDLERS 🌟
+  const deletePredictorLead = async (id) => {
+    if(window.confirm("Delete this predictor lead?")) { 
+      try { await deleteDoc(doc(db, "Predictor_Requests", id)); } catch (err) { console.error(err); } 
+    }
+  };
+
+  const updatePredictorStatus = async (id, newStatus) => {
+    try { await updateDoc(doc(db, "Predictor_Requests", id), { status: newStatus }); } 
+    catch (err) { console.error(err); }
   };
 
   const markAsCompleted = async (id, colName) => {
@@ -221,7 +267,6 @@ export default function AdminPanel() {
     reader.readAsDataURL(file);
   };
   const onReplaceImageLoad = (e) => { const { width, height } = e.currentTarget; let aspect = replaceDocKey === 'profilePicUrl' ? 413/446 : replaceDocKey === 'signatureUrl' ? 3/1 : undefined; setReplaceCrop(aspect ? centerCrop(makeAspectCrop({ unit: '%', width: 90 }, aspect, width, height), width, height) : { unit: '%', width: 100, height: 100, x: 0, y: 0 }); };
-  const handleReplaceRotate = () => { /* basic rotate */ };
   const handleReplaceCropSave = async () => { setReplaceCropModalOpen(false); processAndUploadReplace(replaceRawFile, replaceDocKey); };
   const processAndUploadReplace = async (fileBlob, docKey) => {
     setReplacingDoc(docKey); 
@@ -246,27 +291,31 @@ export default function AdminPanel() {
     return catMatch && searchMatch && dateMatch && agentMatch;
   });
 
+  const filteredRegisteredUsers = registeredUsers.filter(u => 
+    !userSearchTerm || 
+    u.fullName?.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
+    u.phone?.includes(userSearchTerm) ||
+    u.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
+
   const clearFilters = () => { setSearchQuery(''); setDateFilter(''); setActiveFilter('All'); setAgentFilter('All'); };
   
-  // 🌟 NAYA: EXPORT TO EXCEL / CSV LOGIC 🌟
   const exportToExcel = () => {
     if (filteredBookings.length === 0) {
       alert("No data available to export.");
       return;
     }
 
-    // CSV Headers
     const headers = [
       "Token Number", "Full Name", "Mobile", "Category", 
       "Exam/Target", "Institute", "Batch", "Status", 
       "Application No", "Payment Status", "Assigned Agent", "Booking Date"
     ];
 
-    // Map the filtered bookings to CSV row format
     const csvRows = filteredBookings.map(b => {
       return [
         b.tokenNumber || 'N/A',
-        `"${b.fullName || ''}"`, // Quotes to handle commas in names
+        `"${b.fullName || ''}"`, 
         b.mobile || '',
         b.category || '',
         b.examTarget || b.exam || '',
@@ -280,10 +329,7 @@ export default function AdminPanel() {
       ].join(',');
     });
 
-    // Combine headers and rows
     const csvContent = [headers.join(','), ...csvRows].join('\n');
-
-    // Create a Blob and trigger the download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -299,6 +345,7 @@ export default function AdminPanel() {
   const completedCount = filteredBookings.filter(b => b.status === 'Completed').length;
   const totalPaidAmount = filteredBookings.reduce((sum, b) => b.paymentStatus === 'Paid' ? sum + Number(b.paymentAmount || 0) : sum, 0);
   const pendingMissingCount = missingRequests.filter(m => m.status === 'Pending').length;
+  const newPredictorLeadsCount = predictorLeads.filter(p => p.status === 'New Request' || p.status === 'New Lead').length;
 
   if (!isAuthenticated) return <AdminLogin password={password} setPassword={setPassword} error={error} handleLogin={handleLogin} />;
 
@@ -424,6 +471,16 @@ export default function AdminPanel() {
           
           <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Headphones size={20}/> Counselling Leads</button>
 
+          {/* 🌟 NAYA TAB: PREDICTOR LEADS 🌟 */}
+          <button onClick={() => { setActiveTab('predictor'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'predictor' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+            <div className="flex items-center gap-3"><Sparkles size={20}/> Predictor Leads</div>
+            {newPredictorLeadsCount > 0 && <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{newPredictorLeadsCount}</span>}
+          </button>
+
+          <button onClick={() => { setActiveTab('registeredUsers'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'registeredUsers' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+            <Users size={20}/> Registered Students
+          </button>
+
           <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><div className="flex items-center gap-3"><FileWarning size={20}/> Missing Items</div>{pendingMissingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{pendingMissingCount}</span>}</button>
           <button onClick={() => { setActiveTab('camps'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><div className="flex items-center gap-3"><Building size={20}/> Camp Requests</div>{campRequests.filter(c => c.status === 'New Request').length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New</span>}</button>
           <button onClick={() => { setActiveTab('team'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'team' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Shield size={20}/> Team & Agents</button>
@@ -454,7 +511,131 @@ export default function AdminPanel() {
           />
         )}
 
-        {/* 🌟 COUNSELLING TAB RENDER 🌟 */}
+        {/* 🌟 NAYA: PREDICTOR LEADS TAB COMPONENT RENDER 🌟 */}
+        {activeTab === 'predictor' && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                  <Sparkles className="text-orange-500" size={32} /> Predictor Leads
+                </h1>
+                <p className="text-gray-500 font-medium mt-1">Manage students seeking college predictions.</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-black">
+                    <th className="p-4">Mobile</th>
+                    <th className="p-4">Academics</th>
+                    <th className="p-4">Target & Score</th>
+                    <th className="p-4">AI Result</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {predictorLeads.length === 0 ? (
+                    <tr><td colSpan="6" className="p-10 text-center text-gray-500">No predictor leads found yet.</td></tr>
+                  ) : (
+                    predictorLeads.map(lead => (
+                      <tr key={lead.id} className="hover:bg-gray-50">
+                        <td className="p-4">
+                          <p className="font-bold text-gray-900">{lead.mobile || 'N/A'}</p>
+                          <p className="text-[10px] text-gray-400">{formatTime(lead.timestamp)}</p>
+                        </td>
+                        <td className="p-4">
+                          <p className="font-bold text-gray-800">{lead.exam}</p>
+                          <p className="text-xs text-gray-500">{lead.state} • {lead.category}</p>
+                        </td>
+                        <td className="p-4">
+                          <p className="font-bold text-gray-800">{lead.dream}</p>
+                          <p className="text-sm text-orange-600 font-black">Score: {lead.score}</p>
+                        </td>
+                        <td className="p-4">
+                          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${lead.result === 'Positive' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {lead.result || 'Alternative'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <select 
+                            value={lead.status || 'New Request'} 
+                            onChange={(e) => updatePredictorStatus(lead.id, e.target.value)}
+                            className={`text-xs font-bold px-2 py-1 rounded outline-none cursor-pointer ${lead.status === 'Contacted' ? 'bg-blue-100 text-blue-700' : lead.status === 'Closed' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}
+                          >
+                            <option value="New Request">New Request</option>
+                            <option value="New Lead">New Request</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Closed">Closed</option>
+                          </select>
+                        </td>
+                        <td className="p-4 flex justify-center gap-2">
+                          <button onClick={() => deletePredictorLead(lead.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete Lead"><Trash2 size={18}/></button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'registeredUsers' && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                  <Users className="text-emerald-600" size={32} /> Web Users
+                </h1>
+                <p className="text-gray-500 font-medium mt-1">Manage students registered via Login/Vault.</p>
+              </div>
+              <div className="relative w-full md:w-72">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input type="text" placeholder="Search name or phone..." value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 outline-none" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-black">
+                    <th className="p-4">Student Info</th>
+                    <th className="p-4">Contact</th>
+                    <th className="p-4">Qualification</th>
+                    <th className="p-4">Method</th>
+                    <th className="p-4 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredRegisteredUsers.length === 0 ? (
+                    <tr><td colSpan="5" className="p-10 text-center text-gray-500">No users found.</td></tr>
+                  ) : (
+                    filteredRegisteredUsers.map(user => (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">{user.fullName?.charAt(0) || 'S'}</div>
+                            <div><p className="font-bold text-gray-900">{user.fullName || 'No Name'}</p><span className="text-[10px] font-bold uppercase bg-gray-100 px-2 py-0.5 rounded-full">{user.role || 'Student'}</span></div>
+                          </div>
+                        </td>
+                        <td className="p-4"><p className="text-sm font-bold text-gray-800">{user.phone || 'N/A'}</p><p className="text-xs text-gray-500">{user.email || 'N/A'}</p></td>
+                        <td className="p-4"><span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-lg">{user.qualification || 'N/A'}</span></td>
+                        <td className="p-4"><span className="text-xs font-bold text-gray-500 capitalize">{user.signupMethod === 'google' ? '🌐 Google' : '📧 Email'}</span></td>
+                        <td className="p-4 flex justify-center gap-2">
+                          <button onClick={() => toggleUserRole(user.id, user.role)} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" title="Toggle Admin Role">{user.role === 'admin' ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}</button>
+                          <button onClick={() => deleteRegisteredUser(user.id, user.fullName)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete User"><Trash2 size={18}/></button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'counselling' && (
           <CounsellingLeads />
         )}

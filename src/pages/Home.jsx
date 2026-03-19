@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { HelpCircle, ShieldCheck, Clock, Smartphone, Zap, ArrowRight, Building, FileWarning, X, CheckCircle, Loader2, Users, FileText, CheckSquare, Stethoscope, Calculator, BookOpen, GraduationCap, CheckCircle2, ChevronRight, MessageCircle, Star, Award, MapPin } from 'lucide-react';
+import { HelpCircle, ShieldCheck, Clock, Smartphone, Zap, ArrowRight, Building, FileWarning, X, CheckCircle, Loader2, Users, FileText, CheckSquare, Stethoscope, Calculator, BookOpen, GraduationCap, CheckCircle2, ChevronRight, MessageCircle, Star, Award, MapPin, Search, Sparkles, AlertCircle, Trophy } from 'lucide-react';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase'; 
+
+// 🌟 NAYA IMPORT: onAuthStateChanged aur auth ko add kiya 🌟
+import { onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '../firebase'; 
+
 import BookingModal from '../components/BookingModal'; 
 import Chatbot from '../components/Chatbot';
 import CounsellingSection from '../components/CounsellingSection'; 
+import AuthVaultWeb from '../components/AuthVaultWeb.jsx'; 
 
 // 🌟 EXAM DATA BASE 🌟
 const examDetailsData = [
@@ -81,19 +86,28 @@ const examDetailsData = [
       'Caste Certificate (Jati Praman Patra) for scholarship benefits'
     ],
     edufillPromise: 'No need to stand in long lines at cyber cafes during peak admission season. Send us your documents securely, and our dedicated agent will handle your registration, choice filling, and fee payment from start to finish.',
-    actionType: 'direct_12th' // 🌟 NAYA ACTION TYPE 🌟
+    actionType: 'direct_12th'
   }
 ];
 
 export default function HomePage() {
+  // 🌟 NAYA STATE: CURRENT LOGGED IN USER KE LIYE 🌟
+  const [currentUser, setCurrentUser] = useState(null);
+
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedExamInfo, setSelectedExamInfo] = useState(null); 
   const [isCampDetailsOpen, setIsCampDetailsOpen] = useState(false); 
   const [isCampModalOpen, setIsCampModalOpen] = useState(false);
   const [isMissingModalOpen, setIsMissingModalOpen] = useState(false);
   const [isCounsellingModalOpen, setIsCounsellingModalOpen] = useState(false); 
-  
-  // 🌟 12TH ADMISSION FORM STATE 🌟
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // 🌟 COLLEGE PREDICTOR STATES 🌟
+  const [isFinderOpen, setIsFinderOpen] = useState(false);
+  const [finderForm, setFinderForm] = useState({ exam: 'NEET', score: '', category: 'General', state: 'Madhya Pradesh', dream: 'Govt MBBS', mobile: '' });
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionResult, setPredictionResult] = useState(null);
+
   const [is12thModalOpen, setIs12thModalOpen] = useState(false);
   const [form12th, setForm12th] = useState({ studentName: '', mobile: '', marks12th: '', stream: 'PCM', expectedCourse: 'B.Sc' });
   const [saving12th, setSaving12th] = useState(false);
@@ -104,53 +118,106 @@ export default function HomePage() {
   const [campForm, setCampForm] = useState({ instituteName: '', contactPerson: '', mobile: '', studentCount: '' });
   const [missingForm, setMissingForm] = useState({ studentName: '', mobile: '', missingItems: [] });
 
-  // 🌟 AUTO-ASSIGN 12TH AGENT AND SUBMIT FORM 🌟
+  // 🌟 USER LOGIN STATUS TRACKER 🌟
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 🌟 PREDICTOR ALGORITHM (12TH MARKS ADDED) 🌟
+  const analyzeScore = (form) => {
+    let result = { success: false, title: "", message: "", colleges: [] };
+    let s = parseFloat(form.score);
+
+    if (form.exam === 'NEET') {
+      if (form.dream === 'AIIMS' && s >= 650) {
+        result = { success: true, title: "Congratulations! 🎯", message: `Based on past 3 years' trends, you have a solid chance of getting into AIIMS!`, colleges: ['AIIMS Gorakhpur', 'AIIMS Kalyani', 'AIIMS Rishikesh'] };
+      } else if (form.dream === 'Govt MBBS' && s >= 600) {
+        result = { success: true, title: "Great News! 🩺", message: `Your score is highly competitive for Government Medical Colleges in ${form.state} (State Quota).`, colleges: [`Govt Medical College, ${form.state}`, `Top State Medical Institute`, `District Govt Hospital`] };
+      } else if (form.dream === 'BAMS' && s >= 450) {
+        result = { success: true, title: "Well Done! 🌿", message: `You can easily secure a Top Govt. BAMS seat in ${form.state}.`, colleges: [`Govt Ayurvedic College, ${form.state}`, `National Institute of Ayurveda`] };
+      } else {
+        result = { success: false, title: "Tough Chances 📉", message: `Getting ${form.dream} might be slightly difficult with ${s} marks in ${form.category} category. But don't worry, here are the best alternative options for you:`, colleges: [`Top Private Medical Colleges in ${form.state}`, 'Top Govt. BDS Colleges', 'B.Sc Nursing (Top Govt)'] };
+      }
+    } 
+    else if (form.exam === 'JEE Main') {
+      if ((form.dream === 'Top NITs' || form.dream === 'IIITs') && s >= 95) {
+        result = { success: true, title: "Awesome Score! 💻", message: `You are in the safe zone for top Engineering institutes!`, colleges: ['NIT Warangal', 'NIT Surathkal', 'IIIT Allahabad'] };
+      } else if (form.dream === 'Govt Engineering' && s >= 85) {
+        result = { success: true, title: "Congratulations! 🎓", message: `You can get top State Govt Engineering Colleges in ${form.state}.`, colleges: [`SGSITS / Top State Govt College`, `Top Govt Autonomous Institute`] };
+      } else {
+        result = { success: false, title: "Keep Your Hopes Up! 🚀", message: `Getting top NITs might be tough, but you have excellent state-level options in ${form.state}:`, colleges: [`Top Ranked Private B.Tech Colleges`, `State Govt Colleges (Core Branches)`] };
+      }
+    }
+    // 🌟 NAYA: 12TH BOARD MARKS LOGIC 🌟
+    else if (form.exam === '12th Merit') {
+      if (s >= 85) {
+        result = { success: true, title: "Excellent Percentage! 🎓", message: `With ${s}%, you have a very high chance of getting admission in top government colleges or main university campuses in ${form.state}.`, colleges: [`Top Govt Excellence College, ${form.state}`, `Main State University Campus`, `Premium Private Institutes`] };
+      } else if (s >= 65) {
+        result = { success: true, title: "Good Score! 📚", message: `You can easily secure a seat in reputed state/city level colleges in ${form.state}.`, colleges: [`City Govt Degree College`, `Top Rated Private College`, `Autonomous State Institute`] };
+      } else {
+        result = { success: false, title: "Decent Chances 👍", message: `Top Govt colleges might be highly competitive, but you have great alternative options for your graduation in ${form.state}.`, colleges: [`Reputed Private Colleges`, `Local City Colleges`, `Distance/Open University Programs`] };
+      }
+    }
+    else {
+      result = { success: true, title: "Great Potential! 🌟", message: `Your score opens up multiple top university doors.`, colleges: [`Top University in ${form.state}`, `Central University Campus`] };
+    }
+    return result;
+  };
+
+  // 🌟 COLLEGE PREDICTOR SUBMIT HANDLER 🌟
+  const handleFinderSubmit = async (e) => {
+    e.preventDefault();
+    if(finderForm.mobile.length !== 10) return alert("Please enter a valid 10-digit mobile number.");
+    
+    setIsPredicting(true);
+    const resultData = analyzeScore(finderForm);
+
+    try {
+      await addDoc(collection(db, "Predictor_Requests"), { 
+        ...finderForm, 
+        result: resultData.success ? 'Positive' : 'Alternative',
+        status: 'New Request', 
+        timestamp: serverTimestamp() 
+      });
+      
+      setTimeout(() => {
+        setIsPredicting(false);
+        setPredictionResult(resultData);
+      }, 2500);
+
+    } catch (error) {
+      console.error(error);
+      alert("Failed to analyze score. Please try again.");
+      setIsPredicting(false);
+    }
+  };
+
   const handle12thSubmit = async (e) => {
     e.preventDefault();
     setSaving12th(true);
     try {
-      // 1. Agent dhundo jo 12th Admission karta ho
       const q = query(collection(db, "Employees"), where("active", "==", true), where("agentCategory", "==", "12th Admission"));
       const snap = await getDocs(q);
-      
       let assignedAgent = "Unassigned";
       
       if (!snap.empty) {
         let agents = [];
         snap.forEach(d => agents.push({ id: d.id, ...d.data() }));
-        // Jis agent ke paas sabse kam bachhe hain use assign karo
         agents.sort((a, b) => (a.assignedCount || 0) - (b.assignedCount || 0));
         assignedAgent = agents[0].name;
-        
-        // Agent ka assign count badha do
-        await updateDoc(doc(db, "Employees", agents[0].id), { 
-          assignedCount: (agents[0].assignedCount || 0) + 1 
-        });
+        await updateDoc(doc(db, "Employees", agents[0].id), { assignedCount: (agents[0].assignedCount || 0) + 1 });
       }
 
-      // 2. Form data Counselling_Requests me save karo taaki Admin Panel me dikhe
       await addDoc(collection(db, "Counselling_Requests"), {
-        studentName: form12th.studentName,
-        mobile: form12th.mobile,
-        examTarget: '12th Admission',
-        score: form12th.marks12th + '%', // Score field me marks jayenge
-        stream: form12th.stream,
-        expectedCourse: form12th.expectedCourse,
-        planSelected: '12th Govt. Admission Support',
-        status: assignedAgent !== "Unassigned" ? 'Agent Assigned' : 'New Request',
-        assignedAgentName: assignedAgent !== "Unassigned" ? assignedAgent : null,
-        timestamp: serverTimestamp()
+        studentName: form12th.studentName, mobile: form12th.mobile, examTarget: '12th Admission', score: form12th.marks12th + '%', stream: form12th.stream, expectedCourse: form12th.expectedCourse, planSelected: '12th Govt. Admission Support', status: assignedAgent !== "Unassigned" ? 'Agent Assigned' : 'New Request', assignedAgentName: assignedAgent !== "Unassigned" ? assignedAgent : null, timestamp: serverTimestamp()
       });
 
       alert(`Success! Your details have been submitted.\nAssigned Agent: ${assignedAgent !== "Unassigned" ? assignedAgent : "Will be assigned shortly"}`);
-      setIs12thModalOpen(false);
-      setForm12th({ studentName: '', mobile: '', marks12th: '', stream: 'PCM', expectedCourse: 'B.Sc' });
-    } catch (error) {
-      console.error(error);
-      alert("Failed to submit request.");
-    } finally {
-      setSaving12th(false);
-    }
+      setIs12thModalOpen(false); setForm12th({ studentName: '', mobile: '', marks12th: '', stream: 'PCM', expectedCourse: 'B.Sc' });
+    } catch (error) { alert("Failed to submit request."); } finally { setSaving12th(false); }
   };
 
   const handleCampSubmit = async (e) => {
@@ -181,227 +248,194 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans relative selection:bg-emerald-200">
       
-      <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} />
+      {/* 🌟 AUTHENTICATION FULL SCREEN OVERLAY 🌟 */}
+      {isAuthOpen && (
+        <div className="fixed inset-0 z-[150] bg-white overflow-y-auto animate-in slide-in-from-bottom-10 duration-300">
+          <button onClick={() => setIsAuthOpen(false)} className="absolute top-4 right-4 z-50 p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors" title="Close Vault"><X size={24} /></button>
+          {AuthVaultWeb ? <AuthVaultWeb /> : <div className="p-10 text-center text-red-500">Auth component not found.</div>}
+        </div>
+      )}
+
+      {isBookingOpen && BookingModal && <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} />}
+
+      {/* 🌟 COLLEGE FINDER MODAL 🌟 */}
+      {isFinderOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[95vh] overflow-y-auto animate-in zoom-in-95 duration-300 relative">
+            
+            {!predictionResult ? (
+              <>
+                <div className="bg-gradient-to-r from-orange-500 to-rose-600 p-6 flex justify-between items-start text-white relative">
+                  <div>
+                    <span className="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1 block">AI Powered</span>
+                    <h2 className="text-xl font-black flex items-center gap-2"><Sparkles size={20}/> Dream College Finder</h2>
+                  </div>
+                  <button onClick={() => setIsFinderOpen(false)} className="bg-white/20 hover:bg-white/30 p-1.5 rounded-full transition-colors"><X size={20}/></button>
+                </div>
+
+                <form onSubmit={handleFinderSubmit} className="p-6 space-y-4">
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Select Exam</label>
+                      <select value={finderForm.exam} onChange={e => setFinderForm({...finderForm, exam: e.target.value, dream: e.target.value === 'NEET' ? 'Govt MBBS' : e.target.value === 'JEE Main' ? 'Top NITs' : e.target.value === '12th Merit' ? 'Top Govt College' : 'Central University'})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-3 py-3 outline-none bg-white font-medium text-sm">
+                        <option value="NEET">NEET UG</option>
+                        <option value="JEE Main">JEE Main</option>
+                        <option value="12th Merit">12th Board Marks</option>
+                        <option value="CUET">CUET</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Your Category</label>
+                      <select value={finderForm.category} onChange={e => setFinderForm({...finderForm, category: e.target.value})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-3 py-3 outline-none bg-white font-medium text-sm">
+                        <option value="General">General</option>
+                        <option value="OBC">OBC-NCL</option>
+                        <option value="EWS">Gen-EWS</option>
+                        <option value="SC">SC</option>
+                        <option value="ST">ST</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Target State</label>
+                      <select value={finderForm.state} onChange={e => setFinderForm({...finderForm, state: e.target.value})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-3 py-3 outline-none bg-white font-medium text-sm">
+                        <option value="Madhya Pradesh">Madhya Pradesh</option>
+                        <option value="Maharashtra">Maharashtra</option>
+                        <option value="Uttar Pradesh">Uttar Pradesh</option>
+                        <option value="Rajasthan">Rajasthan</option>
+                        <option value="Delhi">Delhi</option>
+                        <option value="Bihar">Bihar</option>
+                        <option value="Other">Other State</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Dream College</label>
+                      <select value={finderForm.dream} onChange={e => setFinderForm({...finderForm, dream: e.target.value})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-3 py-3 outline-none bg-white font-medium text-sm">
+                        {finderForm.exam === 'NEET' ? (
+                          <><option value="Govt MBBS">Govt MBBS</option><option value="AIIMS">AIIMS</option><option value="BAMS">Govt BAMS</option><option value="Private MBBS">Private MBBS</option></>
+                        ) : finderForm.exam === 'JEE Main' ? (
+                          <><option value="Top NITs">Top NITs</option><option value="IIITs">IIITs</option><option value="Govt Engineering">Govt Engineering</option></>
+                        ) : finderForm.exam === '12th Merit' ? (
+                          <><option value="Top Govt College">Top Govt College (B.Sc/B.Com/BA)</option><option value="State University">State University Campus</option><option value="Premium Private">Premium Private College</option></>
+                        ) : (
+                          <><option value="Central University">Central University</option><option value="State University">State University</option></>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
+                      {finderForm.exam === '12th Merit' ? '12th Board Percentage (%)' : 'Expected Marks/Percentile'}
+                    </label>
+                    <input type="number" required value={finderForm.score} onChange={e => setFinderForm({...finderForm, score: e.target.value})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-4 py-3 outline-none transition-colors font-bold text-lg" placeholder={finderForm.exam === 'JEE Main' ? "e.g. 95.5" : finderForm.exam === '12th Merit' ? "e.g. 85" : "e.g. 620"} />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">WhatsApp Number</label>
+                    <input type="tel" maxLength="10" required value={finderForm.mobile} onChange={e => setFinderForm({...finderForm, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-orange-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="For personalized report" />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <button type="submit" disabled={isPredicting} className="w-full bg-gradient-to-r from-orange-500 to-rose-600 hover:opacity-90 text-white font-extrabold py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
+                      {isPredicting ? (
+                        <><Loader2 className="animate-spin" size={24}/> Analyzing Score...</>
+                      ) : (
+                        <><Search size={20}/> Find My Colleges</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              /* 🌟 SUCCESS / RESULT SCREEN 🌟 */
+              <div className="p-8 text-center animate-in zoom-in-90 duration-300">
+                <div className={`w-20 h-20 ${predictionResult.success ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-500'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  {predictionResult.success ? <Trophy size={40} /> : <AlertCircle size={40} />}
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">{predictionResult.title}</h3>
+                <p className="text-gray-600 font-medium mb-6 leading-relaxed">
+                  {predictionResult.message}
+                </p>
+
+                <div className="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-200 text-left">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Predicted Options in {finderForm.state}</p>
+                  <ul className="space-y-2">
+                    {predictionResult.colleges.map((col, i) => (
+                      <li key={i} className="flex items-center gap-2 text-sm font-bold text-gray-800"><CheckCircle2 size={16} className="text-emerald-500"/> {col}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <p className="text-xs text-gray-500 mb-4">A detailed counselling report will be sent to your WhatsApp (+91 {finderForm.mobile}).</p>
+                
+                <button onClick={() => { setIsFinderOpen(false); setPredictionResult(null); setFinderForm({ exam: 'NEET', score: '', category: 'General', state: 'Madhya Pradesh', dream: 'Govt MBBS', mobile: '' }); }} className="w-full bg-gray-900 hover:bg-black text-white font-bold py-4 rounded-xl transition-colors">
+                  Close Predictor
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* 🌟 EXAM DETAILS MODAL 🌟 */}
       {selectedExamInfo && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
-            
             <div className={`bg-gradient-to-r ${selectedExamInfo.color} p-6 text-white sticky top-0 z-10`}>
               <button onClick={() => setSelectedExamInfo(null)} className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"><X size={20}/></button>
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                  {selectedExamInfo.icon}
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2 py-1 rounded-md mb-1 inline-block">{selectedExamInfo.tag}</span>
-                  <h2 className="text-2xl md:text-3xl font-black leading-tight">{selectedExamInfo.title}</h2>
-                </div>
+                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">{selectedExamInfo.icon}</div>
+                <div><span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2 py-1 rounded-md mb-1 inline-block">{selectedExamInfo.tag}</span><h2 className="text-2xl md:text-3xl font-black leading-tight">{selectedExamInfo.title}</h2></div>
               </div>
             </div>
-
             <div className="p-6 space-y-8">
-              <div>
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 border-b pb-2">About The Exam</h3>
-                <p className="text-gray-700 text-sm leading-relaxed font-medium">{selectedExamInfo.desc}</p>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3 border-b pb-2">Documents Required</h3>
-                <ul className="space-y-3">
-                  {selectedExamInfo.requirements.map((req, idx) => (
-                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-800 font-medium">
-                      <CheckCircle2 size={18} className={`shrink-0 mt-0.5 ${selectedExamInfo.textColor}`} />
-                      <span>{req}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className={`${selectedExamInfo.lightBg} p-5 rounded-2xl border border-${selectedExamInfo.textColor.split('-')[1]}-100`}>
-                <h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${selectedExamInfo.textColor} flex items-center gap-2`}>
-                  <ShieldCheck size={18}/> The EduFill Advantage
-                </h3>
-                <p className="text-sm text-gray-700 leading-relaxed">{selectedExamInfo.edufillPromise}</p>
-              </div>
-
-              {/* 🌟 ACTION BUTTONS LOGIC UPDATE 🌟 */}
+              <div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2 border-b pb-2">About The Exam</h3><p className="text-gray-700 text-sm leading-relaxed font-medium">{selectedExamInfo.desc}</p></div>
+              <div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3 border-b pb-2">Documents Required</h3><ul className="space-y-3">{selectedExamInfo.requirements.map((req, idx) => (<li key={idx} className="flex items-start gap-3 text-sm text-gray-800 font-medium"><CheckCircle2 size={18} className={`shrink-0 mt-0.5 ${selectedExamInfo.textColor}`} /><span>{req}</span></li>))}</ul></div>
+              <div className={`${selectedExamInfo.lightBg} p-5 rounded-2xl border border-${selectedExamInfo.textColor.split('-')[1]}-100`}><h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${selectedExamInfo.textColor} flex items-center gap-2`}><ShieldCheck size={18}/> The EduFill Advantage</h3><p className="text-sm text-gray-700 leading-relaxed">{selectedExamInfo.edufillPromise}</p></div>
               <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
                 {selectedExamInfo.actionType === 'booking' ? (
-                  <>
-                    <button onClick={() => { setSelectedExamInfo(null); setIsBookingOpen(true); }} className={`flex-1 bg-gradient-to-r ${selectedExamInfo.color} hover:opacity-90 text-white font-extrabold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all active:scale-95`}>
-                      Book Form Slot Now <ArrowRight size={18}/>
-                    </button>
-                    <button onClick={() => { 
-                      setSelectedExamInfo(null); 
-                      setIsCounsellingModalOpen(true); 
-                    }} className="flex-1 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-extrabold py-4 rounded-xl flex justify-center items-center gap-2 transition-all">
-                      View Counselling Plans
-                    </button>
-                  </>
+                  <><button onClick={() => { setSelectedExamInfo(null); setIsBookingOpen(true); }} className={`flex-1 bg-gradient-to-r ${selectedExamInfo.color} hover:opacity-90 text-white font-extrabold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all active:scale-95`}>Book Form Slot Now <ArrowRight size={18}/></button><button onClick={() => { setSelectedExamInfo(null); setIsCounsellingModalOpen(true); }} className="flex-1 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-extrabold py-4 rounded-xl flex justify-center items-center gap-2 transition-all">View Counselling Plans</button></>
                 ) : selectedExamInfo.actionType === 'direct_12th' ? (
-                  <button onClick={() => { 
-                    setSelectedExamInfo(null); 
-                    setIs12thModalOpen(true); // Open specialized 12th form
-                  }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-500/30 flex justify-center items-center gap-2 transition-all active:scale-95 text-lg">
-                    Proceed to Registration <ArrowRight size={22} />
-                  </button>
+                  <button onClick={() => { setSelectedExamInfo(null); setIs12thModalOpen(true);}} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-500/30 flex justify-center items-center gap-2 transition-all active:scale-95 text-lg">Proceed to Registration <ArrowRight size={22} /></button>
                 ) : null}
               </div>
-
             </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 SPECIALIZED 12TH ADMISSION FORM MODAL 🌟 */}
+      {/* 🌟 12TH ADMISSION MODAL 🌟 */}
       {is12thModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-            
             <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 flex justify-between items-start text-white relative">
-              <div>
-                <span className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1 block">Registration</span>
-                <h2 className="text-xl font-black">12th Govt. Admission</h2>
-              </div>
+              <div><span className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1 block">Registration</span><h2 className="text-xl font-black">12th Govt. Admission</h2></div>
               <button onClick={() => setIs12thModalOpen(false)} className="bg-white/20 hover:bg-white/30 p-1.5 rounded-full transition-colors"><X size={20}/></button>
             </div>
-
             <form onSubmit={handle12thSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Full Name</label>
-                <input type="text" required value={form12th.studentName} onChange={e => setForm12th({...form12th, studentName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Enter your name" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Mobile Number</label>
-                <input type="tel" maxLength="10" required value={form12th.mobile} onChange={e => setForm12th({...form12th, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit number" />
-              </div>
-
+              <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Full Name</label><input type="text" required value={form12th.studentName} onChange={e => setForm12th({...form12th, studentName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Enter your name" /></div>
+              <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Mobile Number</label><input type="tel" maxLength="10" required value={form12th.mobile} onChange={e => setForm12th({...form12th, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit number" /></div>
               <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Stream</label>
-                  <select value={form12th.stream} onChange={e => setForm12th({...form12th, stream: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white">
-                    <option value="PCM">PCM (Maths)</option>
-                    <option value="PCB">PCB (Bio)</option>
-                    <option value="Commerce">Commerce</option>
-                    <option value="Arts">Arts</option>
-                    <option value="Agriculture">Agriculture</option>
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Marks (%)</label>
-                  <input type="number" required value={form12th.marks12th} onChange={e => setForm12th({...form12th, marks12th: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 85" />
-                </div>
+                <div className="flex-1"><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Stream</label><select value={form12th.stream} onChange={e => setForm12th({...form12th, stream: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white"><option value="PCM">PCM</option><option value="PCB">PCB</option><option value="Commerce">Commerce</option><option value="Arts">Arts</option></select></div>
+                <div className="flex-1"><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">12th Marks (%)</label><input type="number" required value={form12th.marks12th} onChange={e => setForm12th({...form12th, marks12th: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. 85" /></div>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Course</label>
-                <select value={form12th.expectedCourse} onChange={e => setForm12th({...form12th, expectedCourse: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white">
-                  <option value="B.Sc">B.Sc</option>
-                  <option value="B.Com">B.Com</option>
-                  <option value="B.A">B.A</option>
-                  <option value="BBA">BBA</option>
-                  <option value="BCA">BCA</option>
-                </select>
-              </div>
-
-              <div className="pt-4 mt-2 border-t border-gray-100">
-                <button type="submit" disabled={saving12th} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
-                  {saving12th ? <Loader2 className="animate-spin" size={24}/> : "Submit & Assign Agent"}
-                </button>
-                <p className="text-center text-xs text-gray-400 font-medium mt-3">
-                  An expert agent will be assigned instantly to handle your registration.
-                </p>
-              </div>
+              <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Expected Course</label><select value={form12th.expectedCourse} onChange={e => setForm12th({...form12th, expectedCourse: e.target.value})} className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none transition-colors bg-white"><option value="B.Sc">B.Sc</option><option value="B.Com">B.Com</option><option value="B.A">B.A</option><option value="BBA">BBA</option><option value="BCA">BCA</option></select></div>
+              <div className="pt-4 mt-2 border-t border-gray-100"><button type="submit" disabled={saving12th} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">{saving12th ? <Loader2 className="animate-spin" size={24}/> : "Submit & Assign Agent"}</button><p className="text-center text-xs text-gray-400 font-medium mt-3">An expert agent will be assigned instantly to handle your registration.</p></div>
             </form>
           </div>
         </div>
       )}
 
+      {/* COUNSELLING, CAMP, MISSING MODALS */}
+      {isCounsellingModalOpen && CounsellingSection && (<div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center bg-gray-900/70 backdrop-blur-sm transition-opacity duration-300"><div className="bg-white w-full h-[95vh] md:h-auto md:max-h-[95vh] md:max-w-6xl rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-full md:zoom-in-95 duration-500 ease-out"><div className="sticky top-0 z-50 flex justify-between items-center p-4 md:p-0 border-b border-gray-100 bg-white/90 backdrop-blur-md md:absolute md:top-4 md:right-4 md:border-none md:bg-transparent"><h2 className="text-lg font-black text-gray-800 md:hidden ml-2">Counselling Plans</h2><button onClick={() => setIsCounsellingModalOpen(false)} className="bg-red-50 hover:bg-red-100 md:bg-white md:hover:bg-red-100 text-red-600 p-2 md:p-2.5 rounded-full transition-colors shadow-sm"><X size={24} strokeWidth={2.5} /></button></div><div className="overflow-y-auto flex-1 p-2 md:p-8 md:pt-14"><CounsellingSection /></div></div></div>)}
+      {isCampDetailsOpen && ( <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 md:p-4 bg-gray-900/90 backdrop-blur-sm"><div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-3xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-300"><div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-8 md:p-10 text-white relative"><button onClick={() => setIsCampDetailsOpen(false)} className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"><X size={20}/></button><div className="max-w-2xl mt-4 md:mt-0"><span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-4 inline-block">For Institutes</span><h2 className="text-3xl md:text-4xl font-black mb-4 leading-tight">Host an EduFill Campus Drive</h2><p className="text-indigo-100 text-base md:text-lg font-medium leading-relaxed">Bring our expert form-filling services directly to your campus.</p></div></div><div className="p-6 md:p-10"><div className="mb-10"><h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2 border-b pb-3"><Award className="text-indigo-600"/> Facilities We Provide</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="flex gap-4 items-start"><div className="bg-emerald-100 p-3 rounded-xl text-emerald-600 shrink-0"><CheckCircle size={24}/></div><div><h4 className="font-bold text-gray-900">On-Spot Verification</h4></div></div><div className="flex gap-4 items-start"><div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><FileText size={24}/></div><div><h4 className="font-bold text-gray-900">Live Desk</h4></div></div></div></div><div className="bg-gray-50 rounded-2xl p-6 md:p-8 text-center border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-2">Ready to save time?</h3><button onClick={() => { setIsCampDetailsOpen(false); setIsCampModalOpen(true); }} className="w-full md:w-auto px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-xl shadow-lg mx-auto">Proceed to Request Form</button></div></div></div></div>)}
+      {isCampModalOpen && (<div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm"><div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Building size={20} className="text-indigo-600"/> Request a Camp</h2><button onClick={()=>setIsCampModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div><form onSubmit={handleCampSubmit} className="space-y-4"><div><label className="block text-xs font-bold text-gray-600 mb-1">Institute Name</label><input type="text" required value={campForm.instituteName} onChange={e => setCampForm({...campForm, instituteName: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-3" /></div><div><label className="block text-xs font-bold text-gray-600 mb-1">Mobile</label><input type="tel" maxLength="10" required value={campForm.mobile} onChange={e => setCampForm({...campForm, mobile: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-3" /></div><div className="pt-4"><button type="submit" disabled={loadingCamp} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl">{loadingCamp ? <Loader2 className="animate-spin" size={20}/> : "Submit Request"}</button></div></form></div></div>)}
+      {isMissingModalOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"><div className="bg-amber-500 p-5 flex justify-between items-center text-white"><h2 className="text-lg font-bold">Report Missing Item</h2><button onClick={() => setIsMissingModalOpen(false)}><X size={20}/></button></div><form onSubmit={handleMissingSubmit} className="p-5 space-y-4"><div><label className="block text-xs font-bold">Your Full Name</label><input type="text" required value={missingForm.studentName} onChange={e => setMissingForm({...missingForm, studentName: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div><div><label className="block text-xs font-bold">Mobile</label><input type="tel" maxLength="10" required value={missingForm.mobile} onChange={e => setMissingForm({...missingForm, mobile: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-xl">Submit Report</button></form></div></div>)}
 
-      {/* 🌟 COUNSELLING MODAL (Unchanged) 🌟 */}
-      {isCounsellingModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center bg-gray-900/70 backdrop-blur-sm transition-opacity duration-300">
-          <div className="bg-white w-full h-[95vh] md:h-auto md:max-h-[95vh] md:max-w-6xl rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-full md:zoom-in-95 duration-500 ease-out">
-            <div className="sticky top-0 z-50 flex justify-between items-center p-4 md:p-0 border-b border-gray-100 bg-white/90 backdrop-blur-md md:absolute md:top-4 md:right-4 md:border-none md:bg-transparent">
-              <h2 className="text-lg font-black text-gray-800 md:hidden ml-2">Counselling Plans</h2>
-              <button onClick={() => setIsCounsellingModalOpen(false)} className="bg-red-50 hover:bg-red-100 md:bg-white md:hover:bg-red-100 text-red-600 p-2 md:p-2.5 rounded-full transition-colors shadow-sm"><X size={24} strokeWidth={2.5} /></button>
-            </div>
-            <div className="overflow-y-auto flex-1 p-2 md:p-8 md:pt-14"><CounsellingSection /></div>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 DETAILED CAMP INFO MODAL (Unchanged) 🌟 */}
-      {isCampDetailsOpen && ( 
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 md:p-4 bg-gray-900/90 backdrop-blur-sm">
-          <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-3xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-300">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-8 md:p-10 text-white relative">
-              <button onClick={() => setIsCampDetailsOpen(false)} className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"><X size={20}/></button>
-              <div className="max-w-2xl mt-4 md:mt-0">
-                <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-4 inline-block">For Coaching Institutes & Schools</span>
-                <h2 className="text-3xl md:text-4xl font-black mb-4 leading-tight">Host an EduFill Campus Drive</h2>
-                <p className="text-indigo-100 text-base md:text-lg font-medium leading-relaxed">
-                  Don't let your students waste precious study time standing in cyber cafe queues. Bring our expert form-filling services directly to your campus. We handle the paperwork, they focus on cracking exams.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 md:p-10">
-              <div className="mb-10">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2 border-b pb-3"><Award className="text-indigo-600"/> Facilities We Provide</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex gap-4 items-start"><div className="bg-emerald-100 p-3 rounded-xl text-emerald-600 shrink-0"><CheckCircle size={24}/></div><div><h4 className="font-bold text-gray-900">On-Spot Document Verification</h4><p className="text-sm text-gray-500 mt-1">Our experts verify 10th/12th marksheets, Aadhar, and caste certificates on the spot to avoid last-minute rejections.</p></div></div>
-                  <div className="flex gap-4 items-start"><div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><FileText size={24}/></div><div><h4 className="font-bold text-gray-900">Live Form Filling Desk</h4><p className="text-sm text-gray-500 mt-1">We set up computers/laptops directly in your premises. Students just walk in, sit, and get their forms filled instantly.</p></div></div>
-                  <div className="flex gap-4 items-start"><div className="bg-amber-100 p-3 rounded-xl text-amber-600 shrink-0"><Users size={24}/></div><div><h4 className="font-bold text-gray-900">Instant Photography & Biometrics</h4><p className="text-sm text-gray-500 mt-1">We bring portable studios for perfect passport/postcard photos and accurate thumb/finger impressions required by NTA.</p></div></div>
-                  <div className="flex gap-4 items-start"><div className="bg-purple-100 p-3 rounded-xl text-purple-600 shrink-0"><MapPin size={24}/></div><div><h4 className="font-bold text-gray-900">Zero Travel Time</h4><p className="text-sm text-gray-500 mt-1">Students save hours of travelling and waiting at local cafes. Everything happens within the safety of your institute.</p></div></div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-2xl p-6 md:p-8 text-center border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-2">Ready to save your students' time?</h3>
-                <p className="text-sm text-gray-500 mb-6">Fill a quick request form and our team will contact you to schedule dates.</p>
-                <button onClick={() => { setIsCampDetailsOpen(false); setIsCampModalOpen(true); }} className="w-full md:w-auto px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-xl shadow-lg flex items-center justify-center mx-auto gap-2 transition-all active:scale-95">Proceed to Request Form <ArrowRight size={20} /></button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ACTUAL CAMP REQUEST FORM MODAL (Unchanged) */}
-      {isCampModalOpen && ( 
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-             <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Building size={20} className="text-indigo-600"/> Request a Camp</h2><button onClick={()=>setIsCampModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
-             <form onSubmit={handleCampSubmit} className="space-y-4">
-                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Institute Name</label><input type="text" required value={campForm.instituteName} onChange={e => setCampForm({...campForm, instituteName: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="e.g. Ribosome Institute" /></div>
-                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Person Name</label><input type="text" required value={campForm.contactPerson} onChange={e => setCampForm({...campForm, contactPerson: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Your Name" /></div>
-                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Contact Number</label><input type="tel" maxLength="10" required value={campForm.mobile} onChange={e => setCampForm({...campForm, mobile: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="10-digit mobile number" /></div>
-                <div><label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Estimated Students</label><input type="number" required value={campForm.studentCount} onChange={e => setCampForm({...campForm, studentCount: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none transition-colors" placeholder="Approx. count" /></div>
-                <div className="pt-4"><button type="submit" disabled={loadingCamp} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex justify-center items-center">{loadingCamp ? <Loader2 className="animate-spin" size={20}/> : "Submit Request"}</button></div>
-             </form>
-           </div>
-        </div>
-      )}
-
-      {/* MISSING ITEMS MODAL (Unchanged) */}
-      {isMissingModalOpen && ( 
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-amber-500 p-5 flex justify-between items-center text-white"><h2 className="text-lg font-bold flex items-center gap-2"><FileWarning size={20}/> Report Missing Item</h2><button onClick={() => setIsMissingModalOpen(false)} className="bg-white/20 p-1.5 rounded-full"><X size={20}/></button></div>
-            <form onSubmit={handleMissingSubmit} className="p-5 space-y-4">
-              <div><label className="block text-xs font-bold text-gray-600 mb-1">Your Full Name</label><input type="text" required value={missingForm.studentName} onChange={e => setMissingForm({...missingForm, studentName: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div>
-              <div><label className="block text-xs font-bold text-gray-600 mb-1">Mobile Number</label><input type="tel" maxLength="10" required value={missingForm.mobile} onChange={e => setMissingForm({...missingForm, mobile: e.target.value})} className="w-full border rounded-lg px-3 py-2" /></div>
-              <div className="flex gap-3"><label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Passport Photo')} className="mr-2"/> Passport Photo</label><label className="text-sm"><input type="checkbox" onChange={() => handleMissingItemToggle('Confirmation Page')} className="mr-2"/> Confirmation Page</label></div>
-              <button type="submit" className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-xl shadow-md">Submit Report</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* HEADER */}
+      {/* 🌟 HEADER DYNAMIC UPDATE 🌟 */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -410,9 +444,25 @@ export default function HomePage() {
             </div>
             <span className="text-xl md:text-2xl font-extrabold italic text-blue-950 tracking-tight">EduFill</span>
           </div>
-          <a href="https://wa.me/919752519051?text=Hi%20EduFill%20Support,%20I%20need%20help" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-gray-500 hover:text-green-600 bg-gray-100 px-3 py-1.5 rounded-full">
-            <HelpCircle size={16} /> Help
-          </a>
+          <div className="flex items-center gap-3">
+            <a href="https://wa.me/919752519051" target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-green-600 bg-gray-100 px-3 py-2 rounded-full">
+              <HelpCircle size={16} /> Help
+            </a>
+            
+            {/* AGAR LOGGED IN HAI TOH PROFILE, WARNA LOGIN BUTTON */}
+            {currentUser ? (
+              <button onClick={() => setIsAuthOpen(true)} className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-sm md:text-base font-bold py-1.5 px-4 md:px-5 rounded-full shadow-sm transition-colors">
+                <div className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                  {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'S'}
+                </div>
+                Hi, {currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Student'}
+              </button>
+            ) : (
+              <button onClick={() => setIsAuthOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm md:text-base font-bold py-2 px-4 md:px-5 rounded-full shadow-md transition-colors">
+                <ShieldCheck size={18} /> Login
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -430,7 +480,7 @@ export default function HomePage() {
         </div>
 
         {/* EXAM SELECTION GRID */}
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           {examDetailsData.map((exam) => (
             <div key={exam.id} onClick={() => setSelectedExamInfo(exam)} className="bg-white border-2 border-gray-100 hover:border-transparent rounded-3xl p-5 cursor-pointer group hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
               <div className={`absolute inset-0 bg-gradient-to-r ${exam.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10`}></div>
@@ -447,6 +497,23 @@ export default function HomePage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 🌟 DREAM COLLEGE FINDER CARD 🌟 */}
+        <div className="w-full bg-gradient-to-r from-orange-400 to-rose-500 rounded-3xl p-6 md:p-8 text-white shadow-xl mb-12 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1" onClick={() => setIsFinderOpen(true)}>
+          <div className="absolute -top-10 -left-10 w-32 h-32 bg-white opacity-20 rounded-full blur-2xl"></div>
+          <div className="relative z-10 flex-1 text-center md:text-left">
+            <span className="bg-white/20 text-white font-extrabold text-[10px] uppercase tracking-widest px-3 py-1 rounded-full mb-3 inline-block">Free Tool</span>
+            <h3 className="text-xl md:text-3xl font-black mb-2 flex items-center justify-center md:justify-start gap-2">
+              <Search size={28} /> Dream College Predictor
+            </h3>
+            <p className="text-orange-50 text-sm md:text-base font-medium max-w-xl">
+              Confused about where you can get admission? Enter your mock/actual score and let our experts send you a personalized list of top colleges you qualify for.
+            </p>
+          </div>
+          <button className="relative z-10 whitespace-nowrap bg-white text-rose-600 hover:bg-rose-50 font-extrabold py-4 px-8 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2 text-lg pointer-events-none md:pointer-events-auto">
+            Check Now <ArrowRight size={20} />
+          </button>
         </div>
 
         {/* 🌟 INSTITUTE CAMP CARD 🌟 */}
@@ -496,7 +563,8 @@ export default function HomePage() {
         <div className="flex items-center justify-center gap-2 mb-2"><div className="relative w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center shadow-sm"><span className="font-black text-white text-[8px] tracking-tighter">EF</span></div><span className="font-bold text-gray-500 text-sm">EduFill Solutions</span></div>
         <p className="text-xs font-medium text-gray-400">© {new Date().getFullYear()} EduFill. All Rights Reserved.</p>
       </footer>
-      <Chatbot />
+      
+      {Chatbot && <Chatbot />}
     </div>
   );
 }
