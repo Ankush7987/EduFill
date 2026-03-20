@@ -39,7 +39,6 @@ export default function AdminPanel() {
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
 
-  // 🌟 NAYA STATE: PREDICTOR LEADS KE LIYE 🌟
   const [predictorLeads, setPredictorLeads] = useState([]);
 
   const [activeFilter, setActiveFilter] = useState('All'); 
@@ -140,7 +139,6 @@ export default function AdminPanel() {
       setRegisteredUsers(usersData);
     });
 
-    // 🌟 NAYA: FETCH PREDICTOR LEADS FROM DB 🌟
     const qPredictor = query(collection(db, 'Predictor_Requests'));
     const unsubPredictor = onSnapshot(qPredictor, (snapshot) => {
       const leadsData = [];
@@ -195,7 +193,6 @@ export default function AdminPanel() {
     try { await updateDoc(doc(db, "Users", id), { role: newRole }); } catch (error) { console.error(error); }
   };
 
-  // 🌟 NAYA: PREDICTOR LEAD HANDLERS 🌟
   const deletePredictorLead = async (id) => {
     if(window.confirm("Delete this predictor lead?")) { 
       try { await deleteDoc(doc(db, "Predictor_Requests", id)); } catch (err) { console.error(err); } 
@@ -260,14 +257,17 @@ export default function AdminPanel() {
     ctx.drawImage(imageBmp, 0, 20, imageBmp.width * (413/imageBmp.width), imageBmp.height * (413/imageBmp.width));
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 1.0)); return blob;
   };
+
   const handleReplaceFileChange = (e, docKey) => {
     const file = e.target.files[0]; if (!file) return;
     setReplaceRawFile(file); setReplaceDocKey(docKey); const reader = new FileReader();
     reader.addEventListener('load', () => { setReplaceImgSrc(reader.result); setReplaceCompletedCrop(null); setReplaceCropModalOpen(true); });
     reader.readAsDataURL(file);
   };
+  
   const onReplaceImageLoad = (e) => { const { width, height } = e.currentTarget; let aspect = replaceDocKey === 'profilePicUrl' ? 413/446 : replaceDocKey === 'signatureUrl' ? 3/1 : undefined; setReplaceCrop(aspect ? centerCrop(makeAspectCrop({ unit: '%', width: 90 }, aspect, width, height), width, height) : { unit: '%', width: 100, height: 100, x: 0, y: 0 }); };
   const handleReplaceCropSave = async () => { setReplaceCropModalOpen(false); processAndUploadReplace(replaceRawFile, replaceDocKey); };
+  
   const processAndUploadReplace = async (fileBlob, docKey) => {
     setReplacingDoc(docKey); 
     try {
@@ -367,7 +367,7 @@ export default function AdminPanel() {
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutesList} />
 
-      {/* 🌟 EMPLOYEE CREATION MODAL 🌟 */}
+      {/* EMPLOYEE CREATION MODAL */}
       {isEmployeeModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in duration-300">
@@ -434,24 +434,46 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {/* 🌟 NAYA: ADMIN DOCUMENT VAULT MODAL (FOR REGISTERED USERS) 🌟 */}
       {docsModalOpen && selectedStudent && selectedStudent.documents && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
-             <button onClick={() => setDocsModalOpen(false)} className="absolute top-4 right-4 text-gray-500"><X size={20}/></button>
-             <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><FileText size={24} className="text-blue-600"/> Documents</h3>
-             <div className="space-y-3">
-               {[ { key: 'profilePicUrl', label: '🖼️ Passport Photo' }, { key: 'signatureUrl', label: '✍️ Signature' }, { key: 'tenthUrl', label: '📄 10th Marksheet' }, { key: 'domicileUrl', label: '📄 Niwash Praman' }, { key: 'casteUrl', label: '📄 Caste Cert.' } ].map((item) => {
-                 const url = selectedStudent.documents[item.key]; if (!url) return null; 
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative max-h-[90vh] flex flex-col">
+             <button onClick={() => setDocsModalOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-red-500 bg-gray-100 rounded-full p-1"><X size={20}/></button>
+             
+             <div className="mb-4 border-b pb-4">
+               <h3 className="text-xl font-black text-gray-800 flex items-center gap-2"><FileText size={24} className="text-emerald-600"/> Student Vault Documents</h3>
+               <p className="text-gray-500 text-sm font-medium mt-1">{selectedStudent.fullName} • {selectedStudent.phone}</p>
+             </div>
+
+             <div className="space-y-3 overflow-y-auto flex-1 pr-2">
+               {[ 
+                 { key: 'profilePicUrl', label: '🖼️ Passport Photo' }, 
+                 { key: 'signatureUrl', label: '✍️ Signature' }, 
+                 { key: 'thumbUrl', label: '👍 Thumb Impression' }, 
+                 { key: 'aadharUrl', label: '🪪 Aadhar Card' }, 
+                 { key: 'tenthUrl', label: '📄 10th Marksheet' }, 
+                 { key: 'twelfthUrl', label: '📄 12th Marksheet' }, 
+                 { key: 'casteUrl', label: '📜 Caste Cert.' }, 
+                 { key: 'domicileUrl', label: '🏠 Niwash Praman' } 
+               ].map((item) => {
+                 const url = selectedStudent.documents[item.key]; 
+                 if (!url) return null; 
                  return (
-                   <div key={item.key} className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
-                     <span className="font-bold text-sm">{item.label}</span>
+                   <div key={item.key} className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                     <span className="font-bold text-sm text-gray-800">{item.label}</span>
                      <div className="flex gap-2">
-                       <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1 bg-white text-blue-600 rounded font-bold text-xs">View</a>
-                       <label className="px-3 py-1 bg-amber-500 text-white rounded font-bold text-xs cursor-pointer">Replace<input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => handleReplaceFileChange(e, item.key)} /></label>
+                       <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg font-bold text-xs hover:bg-gray-50">View / Download</a>
+                       <label className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 transition-colors text-white rounded-lg font-bold text-xs cursor-pointer shadow-sm">
+                         Replace
+                         <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => handleReplaceFileChange(e, item.key)} />
+                       </label>
                      </div>
                    </div>
                  )
                })}
+               {Object.keys(selectedStudent.documents).length === 0 && (
+                 <div className="text-center py-10 text-gray-400 font-bold">This student hasn't uploaded any documents to their vault yet.</div>
+               )}
              </div>
           </div>
          </div>
@@ -471,7 +493,6 @@ export default function AdminPanel() {
           
           <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}><Headphones size={20}/> Counselling Leads</button>
 
-          {/* 🌟 NAYA TAB: PREDICTOR LEADS 🌟 */}
           <button onClick={() => { setActiveTab('predictor'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'predictor' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
             <div className="flex items-center gap-3"><Sparkles size={20}/> Predictor Leads</div>
             {newPredictorLeadsCount > 0 && <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{newPredictorLeadsCount}</span>}
@@ -511,7 +532,6 @@ export default function AdminPanel() {
           />
         )}
 
-        {/* 🌟 NAYA: PREDICTOR LEADS TAB COMPONENT RENDER 🌟 */}
         {activeTab === 'predictor' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
@@ -582,6 +602,7 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* 🌟 NAYA: REGISTERED USERS TAB UPDATE 🌟 */}
         {activeTab === 'registeredUsers' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
@@ -604,7 +625,8 @@ export default function AdminPanel() {
                     <th className="p-4">Student Info</th>
                     <th className="p-4">Contact</th>
                     <th className="p-4">Qualification</th>
-                    <th className="p-4">Method</th>
+                    {/* 🌟 NAYA: VAULT DOCS COLUMN 🌟 */}
+                    <th className="p-4 text-center">Vault Docs</th>
                     <th className="p-4 text-center">Action</th>
                   </tr>
                 </thead>
@@ -612,23 +634,40 @@ export default function AdminPanel() {
                   {filteredRegisteredUsers.length === 0 ? (
                     <tr><td colSpan="5" className="p-10 text-center text-gray-500">No users found.</td></tr>
                   ) : (
-                    filteredRegisteredUsers.map(user => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">{user.fullName?.charAt(0) || 'S'}</div>
-                            <div><p className="font-bold text-gray-900">{user.fullName || 'No Name'}</p><span className="text-[10px] font-bold uppercase bg-gray-100 px-2 py-0.5 rounded-full">{user.role || 'Student'}</span></div>
-                          </div>
-                        </td>
-                        <td className="p-4"><p className="text-sm font-bold text-gray-800">{user.phone || 'N/A'}</p><p className="text-xs text-gray-500">{user.email || 'N/A'}</p></td>
-                        <td className="p-4"><span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-lg">{user.qualification || 'N/A'}</span></td>
-                        <td className="p-4"><span className="text-xs font-bold text-gray-500 capitalize">{user.signupMethod === 'google' ? '🌐 Google' : '📧 Email'}</span></td>
-                        <td className="p-4 flex justify-center gap-2">
-                          <button onClick={() => toggleUserRole(user.id, user.role)} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" title="Toggle Admin Role">{user.role === 'admin' ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}</button>
-                          <button onClick={() => deleteRegisteredUser(user.id, user.fullName)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete User"><Trash2 size={18}/></button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredRegisteredUsers.map(user => {
+                      const docCount = user.documents ? Object.keys(user.documents).length : 0;
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">{user.fullName?.charAt(0) || 'S'}</div>
+                              <div><p className="font-bold text-gray-900">{user.fullName || 'No Name'}</p><span className="text-[10px] font-bold uppercase bg-gray-100 px-2 py-0.5 rounded-full">{user.role || 'Student'}</span></div>
+                            </div>
+                          </td>
+                          <td className="p-4"><p className="text-sm font-bold text-gray-800">{user.phone || 'N/A'}</p><p className="text-xs text-gray-500">{user.email || 'N/A'}</p></td>
+                          <td className="p-4"><span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-lg">{user.qualification || 'N/A'}</span></td>
+                          
+                          {/* 🌟 NAYA: BUTTON TO OPEN VAULT DOCUMENTS 🌟 */}
+                          <td className="p-4 text-center">
+                            {docCount > 0 ? (
+                              <button 
+                                onClick={() => { setSelectedStudent({ ...user, collectionName: 'Users' }); setDocsModalOpen(true); }}
+                                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors w-full"
+                              >
+                                <FileText size={14}/> View ({docCount})
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400 font-medium">Empty</span>
+                            )}
+                          </td>
+
+                          <td className="p-4 flex justify-center gap-2">
+                            <button onClick={() => toggleUserRole(user.id, user.role)} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" title="Toggle Admin Role">{user.role === 'admin' ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}</button>
+                            <button onClick={() => deleteRegisteredUser(user.id, user.fullName)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete User"><Trash2 size={18}/></button>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
