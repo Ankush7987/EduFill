@@ -5,8 +5,11 @@ import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-import { collection, doc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, onSnapshot, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase'; 
+// 🌟 NAYA IMPORT: getDoc add kiya gaya hai role check karne ke liye 🌟
+import { collection, doc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, onSnapshot, query, where, getDocs, getDoc } from 'firebase/firestore';
+
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { db, auth } from '../firebase'; 
 
 // 🌟 IMPORTS 🌟
 import AdminLogin from './admin/AdminLogin';
@@ -14,17 +17,23 @@ import PaymentModal from './admin/PaymentModal';
 import WalkInModal from './admin/WalkInModal';
 import DocumentUploader from '../components/DocumentUploader';
 
+// 🌟 TAB COMPONENTS 🌟
 import DashboardTab from './admin/tabs/DashboardTab';
 import TeamTab from './admin/tabs/TeamTab';
 import MissingTab from './admin/tabs/MissingTab';
 import CampTab from './admin/tabs/CampTab';
 import SettingsTab from './admin/tabs/SettingsTab';
 import CounsellingLeads from '../components/CounsellingLeads'; 
+import PredictorLeadsTab from './admin/tabs/PredictorLeadsTab'; 
+import RegisteredUsersTab from './admin/tabs/RegisteredUsersTab'; 
 
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true); 
+  const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false); 
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
@@ -80,6 +89,43 @@ export default function AdminPanel() {
   });
   
   const [savingEmp, setSavingEmp] = useState(false);
+
+  // 🌟 NAYA: FIXED SESSION PERSISTENCE WTIH WHITELIST 🌟
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // 1. Apna Admin Whitelist
+        const adminEmails = [
+          'admin@edufill.com', 
+          'officialankush84ya@gmail.com', 
+          'ankushchaurasiya8@gmail.com'
+        ];
+        
+        // 2. Firestore Role Check (Agar future me naya admin add karna ho)
+        let isFirestoreAdmin = false;
+        try {
+          const userDoc = await getDoc(doc(db, "Users", user.uid));
+          if (userDoc.exists() && userDoc.data().role === 'admin') {
+            isFirestoreAdmin = true;
+          }
+        } catch(err) {
+          console.error("Role check failed", err);
+        }
+
+        // 3. Final Decision
+        if (adminEmails.includes(user.email) || isFirestoreAdmin) {
+          setIsAuthenticated(true);
+        } else {
+          // Agar student admin panel kholne ki koshish kare, toh block!
+          setIsAuthenticated(false);
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
+      setIsAuthChecking(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -150,9 +196,28 @@ export default function AdminPanel() {
     return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); unsubEmp(); unsubUsers(); unsubPredictor(); };
   }, [isAuthenticated]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === 'Ankush@7987') { setIsAuthenticated(true); setError(''); } else { setError('Incorrect Password!'); }
+    setIsLoggingIn(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      // Let onAuthStateChanged handle the role check and set isAuthenticated
+      setError('');
+    } catch (err) {
+      setError('Incorrect Email or Password!');
+      console.error(err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error("Error logging out", error);
+    }
   };
 
   const toggleExam = async (examKey) => {
@@ -246,17 +311,7 @@ export default function AdminPanel() {
     } catch (err) { console.error(err); } finally { setSavingWalkIn(false); }
   };
 
-  const getDownloadUrl = (url) => { if (!url) return ''; if (url.includes('res.cloudinary.com')) return `${url.split('/upload/')[0]}/upload/fl_attachment/${url.split('/upload/')[1]}`; return url; };
   const formatTime = (t) => { if (!t) return "Just Now"; if (typeof t.toDate !== 'function') return "Processing..."; return t.toDate().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }); };
-
-  const processPassportPhoto = async (croppedBlob, name) => {
-    const finalBlob = croppedBlob; 
-    const imageBmp = await createImageBitmap(finalBlob);
-    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-    canvas.width = 413; canvas.height = 531; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 413, 531);
-    ctx.drawImage(imageBmp, 0, 20, imageBmp.width * (413/imageBmp.width), imageBmp.height * (413/imageBmp.width));
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 1.0)); return blob;
-  };
 
   const handleReplaceFileChange = (e, docKey) => {
     const file = e.target.files[0]; if (!file) return;
@@ -340,6 +395,87 @@ export default function AdminPanel() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const exportPredictorToCSV = () => {
+    if (predictorLeads.length === 0) {
+      alert("No predictor leads available to export.");
+      return;
+    }
+
+    const headers = [
+      "Student Name", "Mobile", "Exam", "Category", "State", 
+      "Dream College", "Score", "AI Result", "Status", "Date"
+    ];
+
+    const csvRows = predictorLeads.map(lead => {
+      let dateStr = lead.timestamp && typeof lead.timestamp.toDate === 'function' 
+        ? new Date(lead.timestamp.toDate()).toLocaleDateString('en-IN') 
+        : 'N/A';
+
+      return [
+        `"${lead.studentName || 'Guest User'}"`, 
+        lead.mobile || '',
+        lead.exam || '',
+        lead.category || '',
+        `"${lead.state || ''}"`,
+        `"${lead.dream || ''}"`,
+        lead.score || '',
+        lead.result || '',
+        lead.status || '',
+        `"${dateStr}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Predictor_Leads_${new Date().toLocaleDateString('en-IN').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportUsersToCSV = () => {
+    if (filteredRegisteredUsers.length === 0) {
+      alert("No registered users available to export.");
+      return;
+    }
+
+    const headers = [
+      "Student Name", "Mobile", "Email", "Qualification", 
+      "Signup Method", "Role", "Registration Date"
+    ];
+
+    const csvRows = filteredRegisteredUsers.map(user => {
+      let dateStr = user.createdAt && typeof user.createdAt.toDate === 'function' 
+        ? new Date(user.createdAt.toDate()).toLocaleDateString('en-IN') 
+        : 'N/A';
+
+      return [
+        `"${user.fullName || 'No Name'}"`, 
+        user.phone || 'N/A',
+        user.email || 'N/A',
+        `"${user.qualification || 'N/A'}"`,
+        user.signupMethod || 'N/A',
+        user.role || 'student',
+        `"${dateStr}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Registered_Users_${new Date().toLocaleDateString('en-IN').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   const pendingCount = filteredBookings.filter(b => b.status === 'Pending').length;
   const completedCount = filteredBookings.filter(b => b.status === 'Completed').length;
@@ -347,7 +483,62 @@ export default function AdminPanel() {
   const pendingMissingCount = missingRequests.filter(m => m.status === 'Pending').length;
   const newPredictorLeadsCount = predictorLeads.filter(p => p.status === 'New Request' || p.status === 'New Lead').length;
 
-  if (!isAuthenticated) return <AdminLogin password={password} setPassword={setPassword} error={error} handleLogin={handleLogin} />;
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-gray-100">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <ShieldCheck size={32} className="text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-black text-gray-900">Admin Access</h2>
+            <p className="text-gray-500 text-sm mt-1">Enter your admin credentials</p>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 ml-1 uppercase tracking-wider">Admin Email</label>
+              <input 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none font-medium transition-colors"
+                placeholder="admin@edufill.com" 
+                required 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 ml-1 uppercase tracking-wider">Password</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                className="w-full border-2 border-gray-200 focus:border-emerald-500 rounded-xl px-4 py-3 outline-none font-bold tracking-widest text-center transition-colors"
+                placeholder="••••••••" 
+                required 
+              />
+            </div>
+            {error && <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg">{error}</p>}
+            <button 
+              type="submit" 
+              disabled={isLoggingIn}
+              className="w-full bg-gray-900 hover:bg-black text-white font-bold py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 mt-2"
+            >
+              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : 'Secure Login'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden">
@@ -434,7 +625,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* 🌟 NAYA: ADMIN DOCUMENT VAULT MODAL (FOR REGISTERED USERS) 🌟 */}
+      {/* ADMIN DOCUMENT VAULT MODAL */}
       {docsModalOpen && selectedStudent && selectedStudent.documents && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in zoom-in duration-200">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative max-h-[90vh] flex flex-col">
@@ -509,7 +700,7 @@ export default function AdminPanel() {
         </nav>
 
         <div className="p-4 border-t border-gray-800">
-          <button onClick={() => setIsAuthenticated(false)} className="flex items-center gap-3 text-gray-400 hover:text-red-400 w-full px-4 py-3 rounded-xl font-medium transition-colors"><LogOut size={20}/> Logout</button>
+          <button onClick={handleLogout} className="flex items-center gap-3 text-gray-400 hover:text-red-400 w-full px-4 py-3 rounded-xl font-medium transition-colors"><LogOut size={20}/> Logout</button>
         </div>
       </aside>
 
@@ -533,146 +724,26 @@ export default function AdminPanel() {
         )}
 
         {activeTab === 'predictor' && (
-          <div className="animate-in fade-in duration-300">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-              <div>
-                <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-                  <Sparkles className="text-orange-500" size={32} /> Predictor Leads
-                </h1>
-                <p className="text-gray-500 font-medium mt-1">Manage students seeking college predictions.</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-black">
-                    <th className="p-4">Mobile</th>
-                    <th className="p-4">Academics</th>
-                    <th className="p-4">Target & Score</th>
-                    <th className="p-4">AI Result</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {predictorLeads.length === 0 ? (
-                    <tr><td colSpan="6" className="p-10 text-center text-gray-500">No predictor leads found yet.</td></tr>
-                  ) : (
-                    predictorLeads.map(lead => (
-                      <tr key={lead.id} className="hover:bg-gray-50">
-                        <td className="p-4">
-                          <p className="font-bold text-gray-900">{lead.mobile || 'N/A'}</p>
-                          <p className="text-[10px] text-gray-400">{formatTime(lead.timestamp)}</p>
-                        </td>
-                        <td className="p-4">
-                          <p className="font-bold text-gray-800">{lead.exam}</p>
-                          <p className="text-xs text-gray-500">{lead.state} • {lead.category}</p>
-                        </td>
-                        <td className="p-4">
-                          <p className="font-bold text-gray-800">{lead.dream}</p>
-                          <p className="text-sm text-orange-600 font-black">Score: {lead.score}</p>
-                        </td>
-                        <td className="p-4">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${lead.result === 'Positive' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {lead.result || 'Alternative'}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <select 
-                            value={lead.status || 'New Request'} 
-                            onChange={(e) => updatePredictorStatus(lead.id, e.target.value)}
-                            className={`text-xs font-bold px-2 py-1 rounded outline-none cursor-pointer ${lead.status === 'Contacted' ? 'bg-blue-100 text-blue-700' : lead.status === 'Closed' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}
-                          >
-                            <option value="New Request">New Request</option>
-                            <option value="New Lead">New Request</option>
-                            <option value="Contacted">Contacted</option>
-                            <option value="Closed">Closed</option>
-                          </select>
-                        </td>
-                        <td className="p-4 flex justify-center gap-2">
-                          <button onClick={() => deletePredictorLead(lead.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete Lead"><Trash2 size={18}/></button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <PredictorLeadsTab 
+            predictorLeads={predictorLeads} 
+            formatTime={formatTime} 
+            updatePredictorStatus={updatePredictorStatus} 
+            deletePredictorLead={deletePredictorLead} 
+            exportPredictorToCSV={exportPredictorToCSV} 
+          />
         )}
 
-        {/* 🌟 NAYA: REGISTERED USERS TAB UPDATE 🌟 */}
         {activeTab === 'registeredUsers' && (
-          <div className="animate-in fade-in duration-300">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-              <div>
-                <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-                  <Users className="text-emerald-600" size={32} /> Web Users
-                </h1>
-                <p className="text-gray-500 font-medium mt-1">Manage students registered via Login/Vault.</p>
-              </div>
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input type="text" placeholder="Search name or phone..." value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 outline-none" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-black">
-                    <th className="p-4">Student Info</th>
-                    <th className="p-4">Contact</th>
-                    <th className="p-4">Qualification</th>
-                    {/* 🌟 NAYA: VAULT DOCS COLUMN 🌟 */}
-                    <th className="p-4 text-center">Vault Docs</th>
-                    <th className="p-4 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredRegisteredUsers.length === 0 ? (
-                    <tr><td colSpan="5" className="p-10 text-center text-gray-500">No users found.</td></tr>
-                  ) : (
-                    filteredRegisteredUsers.map(user => {
-                      const docCount = user.documents ? Object.keys(user.documents).length : 0;
-                      return (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">{user.fullName?.charAt(0) || 'S'}</div>
-                              <div><p className="font-bold text-gray-900">{user.fullName || 'No Name'}</p><span className="text-[10px] font-bold uppercase bg-gray-100 px-2 py-0.5 rounded-full">{user.role || 'Student'}</span></div>
-                            </div>
-                          </td>
-                          <td className="p-4"><p className="text-sm font-bold text-gray-800">{user.phone || 'N/A'}</p><p className="text-xs text-gray-500">{user.email || 'N/A'}</p></td>
-                          <td className="p-4"><span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-lg">{user.qualification || 'N/A'}</span></td>
-                          
-                          {/* 🌟 NAYA: BUTTON TO OPEN VAULT DOCUMENTS 🌟 */}
-                          <td className="p-4 text-center">
-                            {docCount > 0 ? (
-                              <button 
-                                onClick={() => { setSelectedStudent({ ...user, collectionName: 'Users' }); setDocsModalOpen(true); }}
-                                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors w-full"
-                              >
-                                <FileText size={14}/> View ({docCount})
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400 font-medium">Empty</span>
-                            )}
-                          </td>
-
-                          <td className="p-4 flex justify-center gap-2">
-                            <button onClick={() => toggleUserRole(user.id, user.role)} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" title="Toggle Admin Role">{user.role === 'admin' ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}</button>
-                            <button onClick={() => deleteRegisteredUser(user.id, user.fullName)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete User"><Trash2 size={18}/></button>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <RegisteredUsersTab 
+            filteredRegisteredUsers={filteredRegisteredUsers} 
+            userSearchTerm={userSearchTerm} 
+            setUserSearchTerm={setUserSearchTerm} 
+            setSelectedStudent={setSelectedStudent} 
+            setDocsModalOpen={setDocsModalOpen} 
+            toggleUserRole={toggleUserRole} 
+            deleteRegisteredUser={deleteRegisteredUser} 
+            exportUsersToCSV={exportUsersToCSV} 
+          />
         )}
 
         {activeTab === 'counselling' && (
