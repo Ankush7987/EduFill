@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://edufills.com/sitemap.xml
