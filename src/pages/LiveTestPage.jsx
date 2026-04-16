@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async'; 
-import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages } from 'lucide-react';
+import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore'; // 🚀 CHANGED: Removed onSnapshot for scalability
+import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
 
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
-// 🌟 PERMANENT MATH FIX COMPONENT (Optimized with useMemo) 🌟
+// 🌟 PERMANENT MATH FIX COMPONENT
 const SafeMath = ({ text }) => {
   if (!text) return null;
   
@@ -28,7 +28,7 @@ const SafeMath = ({ text }) => {
       }
       return <span key={index}>{part}</span>;
     });
-  }, [text]); // Re-compute ONLY when text changes to save CPU
+  }, [text]); 
 
   return <span className="whitespace-pre-wrap leading-relaxed">{parsedContent}</span>;
 };
@@ -44,7 +44,6 @@ export default function LiveTestPage() {
   const [selectedAnswers, setSelectedAnswers] = useState(() => JSON.parse(sessionStorage.getItem('mockSelectedAnswers')) || {}); 
   const [statusMap, setStatusMap] = useState(() => JSON.parse(sessionStorage.getItem('mockStatusMap')) || {}); 
   
-  // 🌟 LANGUAGE STATE 🌟
   const [language, setLanguage] = useState(() => sessionStorage.getItem('mockLanguage') || 'en'); 
 
   // 🌟 TIMERS 🌟
@@ -56,7 +55,9 @@ export default function LiveTestPage() {
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(window.innerWidth >= 1024);
 
-  // 🌟 Helper for Unified JSON Extraction 🌟
+  // 🌟 NAYA: GROUPING STATES 🌟
+  const [selectedYear, setSelectedYear] = useState(null);
+
   const getLocalizedText = (field) => {
     if (!field) return '';
     if (typeof field === 'object' && field !== null && !Array.isArray(field)) {
@@ -73,7 +74,6 @@ export default function LiveTestPage() {
     return optionsField;
   };
 
-  // 🌟 SAVE ALL PROGRESS TO SESSION STORAGE 🌟
   useEffect(() => {
     sessionStorage.setItem('mockScreenState', screenState);
     if (activePaper) sessionStorage.setItem('mockActivePaper', JSON.stringify(activePaper));
@@ -87,21 +87,17 @@ export default function LiveTestPage() {
     sessionStorage.setItem('mockLanguage', language);
   }, [screenState, activePaper, questions, currentIndex, selectedAnswers, statusMap, timeLeft, endTime, scoreData, language]);
 
-  // 🚀 HIGH-PERFORMANCE DB FETCH (No real-time listeners to handle 20k users!) 🚀
   useEffect(() => {
     const fetchPapers = async () => {
-      // 1. Check if papers are already cached in sessionStorage to save Firebase Reads
       const cachedPapers = sessionStorage.getItem('eduFill_CachedPapers');
       const cacheTime = sessionStorage.getItem('eduFill_CacheTime');
       
-      // Cache valid for 30 minutes (1800000 ms)
       if (cachedPapers && cacheTime && (Date.now() - Number(cacheTime) < 1800000)) {
         setAvailablePapers(JSON.parse(cachedPapers));
         setIsLoadingDB(false);
         return;
       }
 
-      // 2. If not cached, fetch ONE-TIME from Firebase (Saves huge money & scaling issues)
       try {
         const q = query(collection(db, "MockTests"), where("status", "==", "active"));
         const querySnapshot = await getDocs(q);
@@ -111,9 +107,13 @@ export default function LiveTestPage() {
           papers.push({ id: doc.id, ...doc.data() });
         });
         
-        papers.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+        // Sort by year descending (newest first)
+        papers.sort((a, b) => {
+           const yearA = parseInt(a.year) || 0;
+           const yearB = parseInt(b.year) || 0;
+           return yearB - yearA;
+        });
         
-        // Cache the fresh results
         sessionStorage.setItem('eduFill_CachedPapers', JSON.stringify(papers));
         sessionStorage.setItem('eduFill_CacheTime', String(Date.now()));
         
@@ -128,7 +128,26 @@ export default function LiveTestPage() {
     fetchPapers();
   }, []);
 
-  // 🌟 BULLETPROOF TIMER LOGIC 🌟
+  // 🌟 NAYA: GROUPING LOGIC 🌟
+  // Papers ko unke "Year" ke hisaab se group karna
+  const groupedPapers = useMemo(() => {
+    const groups = {};
+    availablePapers.forEach(paper => {
+      const year = paper.year || 'Other';
+      if (!groups[year]) groups[year] = [];
+      groups[year].push(paper);
+    });
+    return groups;
+  }, [availablePapers]);
+
+  // Saare unique years ki list (Highest to lowest)
+  const yearsList = Object.keys(groupedPapers).sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return parseInt(b) - parseInt(a);
+  });
+
+
   useEffect(() => {
     let timer;
     if (screenState === 'exam' && endTime) {
@@ -244,7 +263,6 @@ export default function LiveTestPage() {
   };
 
   const resetEngine = () => {
-    // Keep cached papers, delete only test progress
     sessionStorage.removeItem('mockScreenState');
     sessionStorage.removeItem('mockActivePaper');
     sessionStorage.removeItem('mockQuestions');
@@ -291,17 +309,27 @@ export default function LiveTestPage() {
 
   const renderScreen = () => {
     
-    // --- LIBRARY SCREEN ---
+    // --- LIBRARY SCREEN (UPDATED WITH FOLDER VIEW) ---
     if (screenState === 'library') {
       return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
               <div>
-                <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">Previous Year Papers</h1>
+                <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">
+                    {selectedYear ? `Papers from ${selectedYear}` : 'Previous Year Papers'}
+                </h1>
                 <p className="text-gray-500 font-medium">Download official PDFs + Answer Keys, or practice on our Live CBT engine.</p>
               </div>
-              <button onClick={() => navigate('/')} className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 px-6 py-2.5 rounded-xl font-bold transition-colors w-fit shadow-sm">Back to Home</button>
+              <div className="flex items-center gap-3">
+                  {/* Agar kisi saal ke andar hain, toh "Back to Folders" button dikhao */}
+                  {selectedYear && (
+                      <button onClick={() => setSelectedYear(null)} className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-sm">
+                          <ArrowLeft size={18}/> Back to Years
+                      </button>
+                  )}
+                  <button onClick={() => navigate('/')} className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 px-6 py-2.5 rounded-xl font-bold transition-colors w-fit shadow-sm">Back to Home</button>
+              </div>
             </div>
 
             {isLoadingDB ? (
@@ -316,40 +344,67 @@ export default function LiveTestPage() {
                 <p className="text-gray-500 mt-2">New previous year papers will be uploaded soon by the Admin.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {availablePapers.map((paper) => (
-                  <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-blue-100">
-                        {paper.examName || 'Mock Test'}
-                      </div>
-                      <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
+                
+              <>
+                {/* 🌟 VIEW 1: YEAR FOLDERS 🌟 */}
+                {!selectedYear && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 animate-in fade-in zoom-in-95 duration-300">
+                        {yearsList.map(year => (
+                            <button 
+                                key={year} 
+                                onClick={() => setSelectedYear(year)}
+                                className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-3 group text-left"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                                    <FolderOpen size={32} />
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-2xl font-black text-gray-900">{year} Papers</h3>
+                                    <p className="text-sm font-bold text-gray-500 mt-1 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">{groupedPapers[year].length} Sets Available</p>
+                                </div>
+                            </button>
+                        ))}
                     </div>
-                    
-                    <h3 className="text-xl font-black text-gray-900 mb-4">{paper.title}</h3>
-                    
-                    <div className="flex flex-wrap gap-3 mb-6">
-                      <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-blue-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><Clock size={16} className="text-amber-500"/> {formatTime((paper.durationMins || 180) * 60)}</div>
+                )}
+
+                {/* 🌟 VIEW 2: PAPERS INSIDE A YEAR 🌟 */}
+                {selectedYear && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-right-8 duration-300">
+                        {groupedPapers[selectedYear].map((paper) => (
+                        <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col">
+                            <div className="flex justify-between items-start mb-4">
+                            <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-blue-100">
+                                {paper.examName || 'Mock Test'}
+                            </div>
+                            <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
+                            </div>
+                            
+                            <h3 className="text-xl font-black text-gray-900 mb-4">{paper.title}</h3>
+                            
+                            <div className="flex flex-wrap gap-3 mb-6">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-blue-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><Clock size={16} className="text-amber-500"/> {formatTime((paper.durationMins || 180) * 60)}</div>
+                            </div>
+                            
+                            <div className="mt-auto space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <a href={paper.paperPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.paperPdfUrl || paper.paperPdfUrl === '#') { e.preventDefault(); alert('PDF not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
+                                <Download size={14}/> Paper PDF
+                                </a>
+                                <a href={paper.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.answerKeyPdfUrl || paper.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
+                                <Key size={14}/> Ans Key
+                                </a>
+                            </div>
+                            
+                            <button onClick={() => startInstructions(paper)} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
+                                <PlayCircle size={18}/> Start Live Mock Test
+                            </button>
+                            </div>
+                        </div>
+                        ))}
                     </div>
-                    
-                    <div className="mt-auto space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <a href={paper.paperPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.paperPdfUrl || paper.paperPdfUrl === '#') { e.preventDefault(); alert('PDF not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
-                          <Download size={14}/> Paper PDF
-                        </a>
-                        <a href={paper.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.answerKeyPdfUrl || paper.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
-                          <Key size={14}/> Ans Key
-                        </a>
-                      </div>
-                      
-                      <button onClick={() => startInstructions(paper)} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
-                        <PlayCircle size={18}/> Start Live Mock Test
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>

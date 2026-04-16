@@ -34,7 +34,16 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false); 
   
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // 🚀 FIX: Load active tab from localStorage so it remembers the last opened page on refresh 🚀
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('edufill_admin_active_tab') || 'dashboard';
+  });
+
+  // 🚀 FIX: Save to localStorage whenever activeTab changes
+  useEffect(() => {
+    localStorage.setItem('edufill_admin_active_tab', activeTab);
+  }, [activeTab]);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
   const [bookings, setBookings] = useState([]);
@@ -190,12 +199,11 @@ export default function AdminPanel() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
-    setError(''); // Purane errors ko clear karne ke liye
+    setError(''); 
     
     try {
       await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
       localStorage.setItem('edufill_admin_auth', 'true'); 
-      // Login successful hone par useEffect (onAuthStateChanged) khud role check kar lega
     } catch (err) {
       console.error("Login Error:", err);
       setError('❌ Incorrect Email or Password! Access Denied.');
@@ -209,6 +217,7 @@ export default function AdminPanel() {
       await signOut(auth);
       setIsAuthenticated(false);
       localStorage.removeItem('edufill_admin_auth');
+      localStorage.removeItem('edufill_admin_active_tab'); // Logout hone par reset kar do
     } catch (error) {
       console.error("Error logging out", error);
     }
