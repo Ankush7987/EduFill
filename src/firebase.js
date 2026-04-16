@@ -1,29 +1,40 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth"; // NAYA: Auth import kiya user authentication ke liye
-import { getAnalytics } from "firebase/analytics";
+import { getAuth } from "firebase/auth"; 
 import { getFirestore } from "firebase/firestore"; 
-import { getStorage } from "firebase/storage"; // NAYA: Storage import kiya documents ke liye
+import { getStorage } from "firebase/storage"; 
+import { getAnalytics, isSupported } from "firebase/analytics";
 
+// 🚀 SECURE CONFIGURATION USING ENVIRONMENT VARIABLES 🚀
+// Vite uses import.meta.env to access environment variables safely
 const firebaseConfig = {
-  apiKey: "AIzaSyBcf--uUz5Z45KNq-8RmsKeqbHwlgbmmwk",
-  authDomain: "edufill-2bbb7.firebaseapp.com",
-  projectId: "edufill-2bbb7",
-  storageBucket: "edufill-2bbb7.firebasestorage.app",
-  messagingSenderId: "72538373970",
-  appId: "1:72538373970:web:ae616cd8e3dffd0743048b",
-  measurementId: "G-FZL101R8X9"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
 
-// Initialize Firestore aur export karein (Data ke liye)
+// Safe Analytics Initialization (Analytics sometimes fails in local dev or specific browsers)
+let analytics;
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+  }
+}).catch(console.error);
+
+export { analytics };
+
+// Initialize Firestore
 export const db = getFirestore(app);
 
-// Initialize Storage aur export karein (Photos aur PDFs save karne ke liye)
+// Initialize Storage 
 export const storage = getStorage(app);
 
-//Initialize Auth aur export karein (User authentication ke liye)
+// Initialize Auth
 export const auth = getAuth(app);

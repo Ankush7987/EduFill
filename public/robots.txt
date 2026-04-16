@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
 
+# Disallow indexing of private dashboards
+Disallow: /admin
+Disallow: /agent
+Disallow: /admin-secret-panel
+
+# Tell Google where your sitemap is
 Sitemap: https://edufills.com/sitemap.xml
