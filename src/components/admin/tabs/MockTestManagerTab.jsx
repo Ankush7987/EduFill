@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, serverTimestamp, onSnapshot, query, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../firebase'; // Path check kar lena agar alag ho
-import { UploadCloud, FileJson, AlertCircle, CheckCircle, Loader2, BookOpen, List, PlusCircle, Edit3, Trash2, Clock, FileText } from 'lucide-react';
+import { db } from '../../../firebase'; 
+import { UploadCloud, FileJson, AlertCircle, CheckCircle, Loader2, BookOpen, List, PlusCircle, Edit3, Trash2, Clock, FileText, FolderOpen, ArrowLeft } from 'lucide-react';
 
 export default function MockTestManagerTab() {
   const [loading, setLoading] = useState(false);
@@ -13,6 +13,9 @@ export default function MockTestManagerTab() {
   const [mockTestsList, setMockTestsList] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
+  
+  // 🌟 NAYA: Admin Folder State 🌟
+  const [selectedAdminYear, setSelectedAdminYear] = useState(null);
 
   // Form States
   const [examName, setExamName] = useState('NEET UG');
@@ -33,11 +36,32 @@ export default function MockTestManagerTab() {
         tests.push({ id: doc.id, ...doc.data() });
       });
       // Sort: Latest first
-      tests.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      tests.sort((a, b) => {
+        const yearA = parseInt(a.year) || 0;
+        const yearB = parseInt(b.year) || 0;
+        return yearB - yearA;
+     });
       setMockTestsList(tests);
     });
     return () => unsubscribe();
   }, []);
+
+  // 🌟 NAYA: GROUPING LOGIC FOR ADMIN 🌟
+  const groupedAdminPapers = useMemo(() => {
+    const groups = {};
+    mockTestsList.forEach(paper => {
+      const year = paper.year || 'Other';
+      if (!groups[year]) groups[year] = [];
+      groups[year].push(paper);
+    });
+    return groups;
+  }, [mockTestsList]);
+
+  const adminYearsList = Object.keys(groupedAdminPapers).sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return parseInt(b) - parseInt(a);
+  });
 
   const resetForm = () => {
     setExamName('NEET UG');
@@ -154,7 +178,7 @@ export default function MockTestManagerTab() {
         
         {/* 🌟 NAYA: TOGGLE BUTTONS 🌟 */}
         <div className="flex bg-gray-200/60 p-1 rounded-xl font-bold text-sm shadow-inner w-fit">
-          <button onClick={() => { setViewMode('upload'); if(!isEditing) resetForm(); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all ${viewMode === 'upload' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+          <button onClick={() => { setViewMode('upload'); if(!isEditing) resetForm(); setSelectedAdminYear(null); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all ${viewMode === 'upload' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
             <PlusCircle size={16}/> {isEditing ? 'Edit Mode' : 'Upload New'}
           </button>
           <button onClick={() => setViewMode('manage')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all ${viewMode === 'manage' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
@@ -249,9 +273,9 @@ export default function MockTestManagerTab() {
         </form>
       )}
 
-      {/* ================= MANAGE TESTS VIEW ================= */}
+      {/* ================= MANAGE TESTS VIEW (FOLDERS) ================= */}
       {viewMode === 'manage' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4">
+        <div className="animate-in slide-in-from-bottom-4">
           {mockTestsList.length === 0 ? (
             <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-gray-100 shadow-sm">
               <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4"/>
@@ -260,32 +284,75 @@ export default function MockTestManagerTab() {
               <button onClick={() => setViewMode('upload')} className="mt-6 bg-indigo-50 text-indigo-600 font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-100 transition-colors">Upload Your First Test</button>
             </div>
           ) : (
-            mockTestsList.map(test => (
-              <div key={test.id} className="bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex-1">
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-indigo-100">
-                      {test.examName} • {test.year}
+            <>
+              {/* ADMIN FOLDER VIEW: Header when inside a year */}
+              {selectedAdminYear && (
+                 <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center gap-3">
+                       <button onClick={() => setSelectedAdminYear(null)} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-full transition-colors text-gray-600">
+                          <ArrowLeft size={20}/>
+                       </button>
+                       <h2 className="text-xl font-black text-gray-900">{selectedAdminYear} Papers</h2>
+                    </div>
+                    <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-100">
+                       {groupedAdminPapers[selectedAdminYear].length} Tests
                     </span>
-                    {test.status === 'active' && <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Live</span>}
-                  </div>
-                  <h3 className="text-lg font-black text-gray-900 mb-4">{test.title}</h3>
-                  <div className="flex gap-4 text-sm font-bold text-gray-500">
-                    <span className="flex items-center gap-1.5"><FileText size={16}/> {test.questions?.length || 0} Qs</span>
-                    <span className="flex items-center gap-1.5"><Clock size={16}/> {test.durationMins} Mins</span>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
-                  <button onClick={() => handleEdit(test)} className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-                    <Edit3 size={16}/> Edit Test
-                  </button>
-                  <button onClick={() => handleDelete(test.id, test.title)} className="flex-1 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-100 hover:border-red-500 font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm group">
-                    <Trash2 size={16} className="group-hover:animate-bounce"/> Delete
-                  </button>
-                </div>
-              </div>
-            ))
+                 </div>
+              )}
+
+              {/* ADMIN FOLDER VIEW: Showing Years */}
+              {!selectedAdminYear && (
+                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-300">
+                    {adminYearsList.map(year => (
+                        <button 
+                            key={year} 
+                            onClick={() => setSelectedAdminYear(year)}
+                            className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-indigo-300 transition-all flex flex-col items-center justify-center gap-3 group text-center"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                                <FolderOpen size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-gray-900">{year}</h3>
+                                <p className="text-sm font-bold text-gray-500 mt-1 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">{groupedAdminPapers[year].length} Tests</p>
+                            </div>
+                        </button>
+                    ))}
+                 </div>
+              )}
+
+              {/* ADMIN FOLDER VIEW: Showing Papers inside Year */}
+              {selectedAdminYear && (
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-right-8 duration-300">
+                    {groupedAdminPapers[selectedAdminYear].map(test => (
+                    <div key={test.id} className="bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-100 flex-1">
+                        <div className="flex justify-between items-start mb-3">
+                            <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-indigo-100">
+                            {test.examName} • {test.year}
+                            </span>
+                            {test.status === 'active' && <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Live</span>}
+                        </div>
+                        <h3 className="text-lg font-black text-gray-900 mb-4">{test.title}</h3>
+                        <div className="flex gap-4 text-sm font-bold text-gray-500">
+                            <span className="flex items-center gap-1.5"><FileText size={16}/> {test.questions?.length || 0} Qs</span>
+                            <span className="flex items-center gap-1.5"><Clock size={16}/> {test.durationMins} Mins</span>
+                        </div>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
+                        <button onClick={() => handleEdit(test)} className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+                            <Edit3 size={16}/> Edit Test
+                        </button>
+                        <button onClick={() => handleDelete(test.id, test.title)} className="flex-1 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-100 hover:border-red-500 font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm group">
+                            <Trash2 size={16} className="group-hover:animate-bounce"/> Delete
+                        </button>
+                        </div>
+                    </div>
+                    ))}
+                 </div>
+              )}
+            </>
           )}
         </div>
       )}
