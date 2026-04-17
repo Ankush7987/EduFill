@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async'; 
 import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft } from 'lucide-react';
-import { useNavigate, useParams, Link } from 'react-router-dom'; // 🚀 Added useParams and Link
+import { useNavigate, useParams, Link } from 'react-router-dom'; 
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
 
@@ -39,7 +39,7 @@ const createSlug = (title) => {
 
 export default function LiveTestPage() {
   const navigate = useNavigate();
-  const { testSlug } = useParams(); // 🚀 Capture URL parameter
+  const { testSlug } = useParams(); 
   
   const [screenState, setScreenState] = useState(() => sessionStorage.getItem('mockScreenState') || 'library');
   const [activePaper, setActivePaper] = useState(() => JSON.parse(sessionStorage.getItem('mockActivePaper')) || null);
@@ -57,8 +57,10 @@ export default function LiveTestPage() {
   const [availablePapers, setAvailablePapers] = useState([]);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(window.innerWidth >= 1024);
-
   const [selectedYear, setSelectedYear] = useState(null);
+
+  // 🚀 NAYA: State for smooth test submission 🚀
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getLocalizedText = (field) => {
     if (!field) return '';
@@ -126,20 +128,18 @@ export default function LiveTestPage() {
         }
       }
 
-      // 🚀 MAGIC: Auto-start test if URL has a valid slug
       if (testSlug && fetchedPapers.length > 0 && screenState === 'library') {
           const targetPaper = fetchedPapers.find(p => createSlug(p.title) === testSlug);
           if (targetPaper) {
               startInstructions(targetPaper);
           } else {
-              // If invalid URL, go back to library main
               navigate('/mock-test');
           }
       }
     };
 
     fetchPapers();
-  }, [testSlug]); // Re-run if URL changes
+  }, [testSlug]); 
 
   const groupedPapers = useMemo(() => {
     const groups = {};
@@ -156,7 +156,6 @@ export default function LiveTestPage() {
     if (b === 'Other') return -1;
     return parseInt(b) - parseInt(a);
   });
-
 
   useEffect(() => {
     let timer;
@@ -202,7 +201,6 @@ export default function LiveTestPage() {
     setLanguage('en'); 
     
     setScreenState('instructions');
-    // Update URL without reloading the page for SEO
     navigate(`/mock-test/${createSlug(paper.title)}`, { replace: true });
   };
 
@@ -262,16 +260,30 @@ export default function LiveTestPage() {
     if (currentIndex > 0) handleNavigate(currentIndex - 1);
   };
 
+  // 🚀 FIXED: Freeze-Proof Smooth Submission 🚀
   const submitTest = () => {
-    let correct = 0, incorrect = 0, unattempted = 0;
-    questions.forEach(q => {
-      const selected = selectedAnswers[q.id];
-      if (selected === undefined) unattempted++;
-      else if (selected === q.correctOptionIndex) correct++;
-      else incorrect++;
-    });
-    setScoreData({ marks: (correct * 4) - (incorrect * 1), correct, incorrect, unattempted });
-    setScreenState('result');
+    // Step 1: Immediately show the loading UI to student
+    setIsSubmitting(true);
+
+    // Step 2: Use setTimeout to release the main thread so browser can render the spinner
+    setTimeout(() => {
+        let correct = 0, incorrect = 0, unattempted = 0;
+        
+        // Background calculation
+        questions.forEach(q => {
+            const selected = selectedAnswers[q.id];
+            if (selected === undefined) unattempted++;
+            else if (selected === q.correctOptionIndex) correct++;
+            else incorrect++;
+        });
+        
+        setScoreData({ marks: (correct * 4) - (incorrect * 1), correct, incorrect, unattempted });
+        
+        // Step 3: Stop spinner, change screen, and scroll to top
+        setIsSubmitting(false);
+        setScreenState('result');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 800); // Give the UI 800ms to show the cool loading animation
   };
 
   const resetEngine = () => {
@@ -295,7 +307,7 @@ export default function LiveTestPage() {
     setEndTime(null);
     setLanguage('en');
     setScreenState('library');
-    navigate('/mock-test', { replace: true }); // Back to main library URL
+    navigate('/mock-test', { replace: true }); 
   };
 
   const handleShare = async () => {
@@ -358,7 +370,6 @@ export default function LiveTestPage() {
             ) : (
                 
               <>
-                {/* 🌟 VIEW 1: YEAR FOLDERS 🌟 */}
                 {!selectedYear && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 animate-in fade-in zoom-in-95 duration-300">
                         {yearsList.map(year => (
@@ -379,7 +390,6 @@ export default function LiveTestPage() {
                     </div>
                 )}
 
-                {/* 🌟 VIEW 2: PAPERS INSIDE A YEAR 🌟 */}
                 {selectedYear && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-right-8 duration-300">
                         {groupedPapers[selectedYear].map((paper) => {
@@ -394,7 +404,6 @@ export default function LiveTestPage() {
                                 <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
                                 </div>
                                 
-                                {/* 🚀 SEO: Text title wrap in standard Link for Google to see */}
                                 <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="text-xl font-black text-gray-900 mb-4 hover:underline">
                                     {paper.title}
                                 </Link>
@@ -414,7 +423,6 @@ export default function LiveTestPage() {
                                     </a>
                                 </div>
                                 
-                                {/* 🚀 SEO: Wrap action button in Link tag */}
                                 <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
                                     <PlayCircle size={18}/> Start Live Mock Test
                                 </Link>
@@ -492,6 +500,16 @@ export default function LiveTestPage() {
 
       return (
         <div className="fixed inset-0 z-[100] bg-[#f8f9fa] flex flex-col font-sans overflow-hidden animate-in fade-in duration-300">
+          
+          {/* 🚀 NAYA: Full Screen Loading Overlay while Submitting 🚀 */}
+          {isSubmitting && (
+            <div className="absolute inset-0 z-[999] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-200">
+                <Loader2 className="w-16 h-16 animate-spin text-emerald-600 mb-6 drop-shadow-md" />
+                <h2 className="text-3xl font-black text-gray-900 mb-2">Analyzing Responses</h2>
+                <p className="text-gray-500 font-bold tracking-widest uppercase">Please wait, generating your result...</p>
+            </div>
+          )}
+
           <header className="bg-white border-b border-gray-200 p-3 md:px-6 md:py-3 flex justify-between items-center shrink-0 shadow-sm z-10">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-600 text-white p-2 md:p-2.5 rounded-xl shadow-md hidden sm:block"><BookOpen size={24}/></div>
@@ -663,8 +681,13 @@ export default function LiveTestPage() {
               </div>
 
               <div className="p-4 border-t border-gray-200 bg-white shrink-0">
-                <button onClick={() => { if(window.confirm("Are you sure you want to submit the test? You cannot change answers later.")) submitTest(); }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 text-lg flex justify-center items-center gap-2">
-                  <CheckCircle size={22}/> Submit Final Test
+                {/* 🚀 Changed to use the new submit function */}
+                <button 
+                  onClick={() => { if(window.confirm("Are you sure you want to submit the test? You cannot change answers later.")) submitTest(); }} 
+                  disabled={isSubmitting}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 text-lg flex justify-center items-center gap-2"
+                >
+                  <CheckCircle size={22}/> {isSubmitting ? 'Calculating...' : 'Submit Final Test'}
                 </button>
               </div>
 
@@ -822,7 +845,6 @@ export default function LiveTestPage() {
 
   return (
     <>
-      {/* 🚀 DYNAMIC SEO HELMET 🚀 */}
       <Helmet>
         <title>{activePaper ? `${activePaper.title} | Live Mock Test` : 'Live Test Engine | Professional Mock CBT'}</title>
         <meta name="description" content={activePaper ? `Practice the ${activePaper.examName} ${activePaper.year} previous year question paper online. Free mock test with detailed solutions.` : "Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction."} />
