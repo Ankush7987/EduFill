@@ -1,12 +1,10 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { HelmetProvider, Helmet } from 'react-helmet-async'; // 🌟 SEO Engine
+import { HelmetProvider, Helmet } from 'react-helmet-async'; 
 import { Loader2, AlertTriangle } from 'lucide-react'; 
 
-// 🌟 MAIN PAGE (Instant Load) 🌟
 import HomePage from './pages/Home';
 
-// 🚀 CODE SPLITTING (React.lazy - 10x Faster Load) 🚀
 const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -23,7 +21,6 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const LiveTestPage = lazy(() => import('./pages/LiveTestPage'));
 const CollegePredictor = lazy(() => import('./components/CollegePredictor'));
 
-// 🌟 CUSTOM LOADING SCREEN 🌟
 const LoadingScreen = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
     <Loader2 className="w-12 h-12 animate-spin text-emerald-600 mb-4" />
@@ -31,7 +28,6 @@ const LoadingScreen = () => (
   </div>
 );
 
-// 🌟 404 PAGE (Agar koi galat link par aaye) 🌟
 const NotFoundScreen = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
     <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
@@ -48,7 +44,6 @@ const NotFoundScreen = () => (
 export default function App() {
   return (
     <HelmetProvider>
-      {/* 🌟 GLOBAL DEFAULT SEO TAGS 🌟 */}
       <Helmet>
         <title>EduFill | India's #1 Form Filling Portal</title>
         <meta name="description" content="Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction." />
@@ -58,35 +53,28 @@ export default function App() {
       <Router>
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
-            
-            {/* 🏠 Main Website View */}
             <Route path="/" element={<HomePage />} />
             
-            {/* 📄 Legal & Info Pages */}
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-and-conditions" element={<TermsConditions />} />
             <Route path="/refund-policy" element={<RefundPolicy />} />
 
-            {/* 🏢 B2B Campus Drive */}
             <Route path="/campus-drive" element={<CampusDrive />} />
 
-            {/* 🔐 Dashboards & Panels */}
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/agent" element={<AgentPanel />} />
             <Route path="/admin-secret-panel" element={<AdminDashboard />} />
 
-            {/* 🚀 Premium Traffic Tools */}
+            {/* 🚀 FIXED: Dynamic Route for Individual Mock Tests */}
             <Route path="/mock-test" element={<LiveTestPage />} />
-            <Route path="/college-predictor" element={<CollegePredictor />} />
+            <Route path="/mock-test/:testSlug" element={<LiveTestPage />} />
 
-            {/* 📝 Exam Form Filling */}
+            <Route path="/college-predictor" element={<CollegePredictor />} />
             <Route path="/apply/:examId" element={<ExamFormPage />} />
             
-            {/* 🛑 Catch-All 404 Route */}
             <Route path="*" element={<NotFoundScreen />} />
-
           </Routes>
         </Suspense>
       </Router>

@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async'; 
 import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom'; // 🚀 Added useParams and Link
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
 
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
-// 🌟 PERMANENT MATH FIX COMPONENT
 const SafeMath = ({ text }) => {
   if (!text) return null;
   
@@ -33,10 +32,15 @@ const SafeMath = ({ text }) => {
   return <span className="whitespace-pre-wrap leading-relaxed">{parsedContent}</span>;
 };
 
+// Helper to create SEO-friendly URLs (Slugs)
+const createSlug = (title) => {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+};
+
 export default function LiveTestPage() {
   const navigate = useNavigate();
+  const { testSlug } = useParams(); // 🚀 Capture URL parameter
   
-  // 🌟 LOAD STATE FROM SESSION STORAGE 🌟
   const [screenState, setScreenState] = useState(() => sessionStorage.getItem('mockScreenState') || 'library');
   const [activePaper, setActivePaper] = useState(() => JSON.parse(sessionStorage.getItem('mockActivePaper')) || null);
   const [questions, setQuestions] = useState(() => JSON.parse(sessionStorage.getItem('mockQuestions')) || []);
@@ -46,7 +50,6 @@ export default function LiveTestPage() {
   
   const [language, setLanguage] = useState(() => sessionStorage.getItem('mockLanguage') || 'en'); 
 
-  // 🌟 TIMERS 🌟
   const [endTime, setEndTime] = useState(() => Number(sessionStorage.getItem('mockEndTime')) || null);
   const [timeLeft, setTimeLeft] = useState(() => Number(sessionStorage.getItem('mockTimeLeft')) || 0); 
   const [scoreData, setScoreData] = useState(() => JSON.parse(sessionStorage.getItem('mockScoreData')) || { marks: 0, correct: 0, incorrect: 0, unattempted: 0 });
@@ -55,7 +58,6 @@ export default function LiveTestPage() {
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(window.innerWidth >= 1024);
 
-  // 🌟 NAYA: GROUPING STATES 🌟
   const [selectedYear, setSelectedYear] = useState(null);
 
   const getLocalizedText = (field) => {
@@ -92,44 +94,53 @@ export default function LiveTestPage() {
       const cachedPapers = sessionStorage.getItem('eduFill_CachedPapers');
       const cacheTime = sessionStorage.getItem('eduFill_CacheTime');
       
+      let fetchedPapers = [];
+
       if (cachedPapers && cacheTime && (Date.now() - Number(cacheTime) < 1800000)) {
-        setAvailablePapers(JSON.parse(cachedPapers));
+        fetchedPapers = JSON.parse(cachedPapers);
+        setAvailablePapers(fetchedPapers);
         setIsLoadingDB(false);
-        return;
+      } else {
+        try {
+          const q = query(collection(db, "MockTests"), where("status", "==", "active"));
+          const querySnapshot = await getDocs(q);
+          
+          querySnapshot.forEach((doc) => {
+            fetchedPapers.push({ id: doc.id, ...doc.data() });
+          });
+          
+          fetchedPapers.sort((a, b) => {
+             const yearA = parseInt(a.year) || 0;
+             const yearB = parseInt(b.year) || 0;
+             return yearB - yearA;
+          });
+          
+          sessionStorage.setItem('eduFill_CachedPapers', JSON.stringify(fetchedPapers));
+          sessionStorage.setItem('eduFill_CacheTime', String(Date.now()));
+          
+          setAvailablePapers(fetchedPapers);
+        } catch (error) {
+          console.error("Error fetching mock tests:", error);
+        } finally {
+          setIsLoadingDB(false);
+        }
       }
 
-      try {
-        const q = query(collection(db, "MockTests"), where("status", "==", "active"));
-        const querySnapshot = await getDocs(q);
-        const papers = [];
-        
-        querySnapshot.forEach((doc) => {
-          papers.push({ id: doc.id, ...doc.data() });
-        });
-        
-        // Sort by year descending (newest first)
-        papers.sort((a, b) => {
-           const yearA = parseInt(a.year) || 0;
-           const yearB = parseInt(b.year) || 0;
-           return yearB - yearA;
-        });
-        
-        sessionStorage.setItem('eduFill_CachedPapers', JSON.stringify(papers));
-        sessionStorage.setItem('eduFill_CacheTime', String(Date.now()));
-        
-        setAvailablePapers(papers);
-      } catch (error) {
-        console.error("Error fetching mock tests:", error);
-      } finally {
-        setIsLoadingDB(false);
+      // 🚀 MAGIC: Auto-start test if URL has a valid slug
+      if (testSlug && fetchedPapers.length > 0 && screenState === 'library') {
+          const targetPaper = fetchedPapers.find(p => createSlug(p.title) === testSlug);
+          if (targetPaper) {
+              startInstructions(targetPaper);
+          } else {
+              // If invalid URL, go back to library main
+              navigate('/mock-test');
+          }
       }
     };
 
     fetchPapers();
-  }, []);
+  }, [testSlug]); // Re-run if URL changes
 
-  // 🌟 NAYA: GROUPING LOGIC 🌟
-  // Papers ko unke "Year" ke hisaab se group karna
   const groupedPapers = useMemo(() => {
     const groups = {};
     availablePapers.forEach(paper => {
@@ -140,7 +151,6 @@ export default function LiveTestPage() {
     return groups;
   }, [availablePapers]);
 
-  // Saare unique years ki list (Highest to lowest)
   const yearsList = Object.keys(groupedPapers).sort((a, b) => {
     if (a === 'Other') return 1;
     if (b === 'Other') return -1;
@@ -192,6 +202,8 @@ export default function LiveTestPage() {
     setLanguage('en'); 
     
     setScreenState('instructions');
+    // Update URL without reloading the page for SEO
+    navigate(`/mock-test/${createSlug(paper.title)}`, { replace: true });
   };
 
   const beginExam = () => {
@@ -283,6 +295,7 @@ export default function LiveTestPage() {
     setEndTime(null);
     setLanguage('en');
     setScreenState('library');
+    navigate('/mock-test', { replace: true }); // Back to main library URL
   };
 
   const handleShare = async () => {
@@ -309,7 +322,7 @@ export default function LiveTestPage() {
 
   const renderScreen = () => {
     
-    // --- LIBRARY SCREEN (UPDATED WITH FOLDER VIEW) ---
+    // --- LIBRARY SCREEN ---
     if (screenState === 'library') {
       return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
@@ -322,7 +335,6 @@ export default function LiveTestPage() {
                 <p className="text-gray-500 font-medium">Download official PDFs + Answer Keys, or practice on our Live CBT engine.</p>
               </div>
               <div className="flex items-center gap-3">
-                  {/* Agar kisi saal ke andar hain, toh "Back to Folders" button dikhao */}
                   {selectedYear && (
                       <button onClick={() => setSelectedYear(null)} className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-sm">
                           <ArrowLeft size={18}/> Back to Years
@@ -370,38 +382,45 @@ export default function LiveTestPage() {
                 {/* 🌟 VIEW 2: PAPERS INSIDE A YEAR 🌟 */}
                 {selectedYear && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-right-8 duration-300">
-                        {groupedPapers[selectedYear].map((paper) => (
-                        <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col">
-                            <div className="flex justify-between items-start mb-4">
-                            <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-blue-100">
-                                {paper.examName || 'Mock Test'}
+                        {groupedPapers[selectedYear].map((paper) => {
+                          const testUrl = `/mock-test/${createSlug(paper.title)}`;
+                          
+                          return (
+                            <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col">
+                                <div className="flex justify-between items-start mb-4">
+                                <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-blue-100">
+                                    {paper.examName || 'Mock Test'}
+                                </div>
+                                <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
+                                </div>
+                                
+                                {/* 🚀 SEO: Text title wrap in standard Link for Google to see */}
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="text-xl font-black text-gray-900 mb-4 hover:underline">
+                                    {paper.title}
+                                </Link>
+                                
+                                <div className="flex flex-wrap gap-3 mb-6">
+                                <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-blue-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
+                                <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><Clock size={16} className="text-amber-500"/> {formatTime((paper.durationMins || 180) * 60)}</div>
+                                </div>
+                                
+                                <div className="mt-auto space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <a href={paper.paperPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.paperPdfUrl || paper.paperPdfUrl === '#') { e.preventDefault(); alert('PDF not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
+                                    <Download size={14}/> Paper PDF
+                                    </a>
+                                    <a href={paper.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.answerKeyPdfUrl || paper.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
+                                    <Key size={14}/> Ans Key
+                                    </a>
+                                </div>
+                                
+                                {/* 🚀 SEO: Wrap action button in Link tag */}
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
+                                    <PlayCircle size={18}/> Start Live Mock Test
+                                </Link>
+                                </div>
                             </div>
-                            <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
-                            </div>
-                            
-                            <h3 className="text-xl font-black text-gray-900 mb-4">{paper.title}</h3>
-                            
-                            <div className="flex flex-wrap gap-3 mb-6">
-                            <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-blue-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><Clock size={16} className="text-amber-500"/> {formatTime((paper.durationMins || 180) * 60)}</div>
-                            </div>
-                            
-                            <div className="mt-auto space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                                <a href={paper.paperPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.paperPdfUrl || paper.paperPdfUrl === '#') { e.preventDefault(); alert('PDF not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
-                                <Download size={14}/> Paper PDF
-                                </a>
-                                <a href={paper.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!paper.answerKeyPdfUrl || paper.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex justify-center items-center gap-1.5 bg-white hover:bg-gray-50 border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-xl transition-colors text-xs active:scale-95">
-                                <Key size={14}/> Ans Key
-                                </a>
-                            </div>
-                            
-                            <button onClick={() => startInstructions(paper)} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
-                                <PlayCircle size={18}/> Start Live Mock Test
-                            </button>
-                            </div>
-                        </div>
-                        ))}
+                        )})}
                     </div>
                 )}
               </>
@@ -485,7 +504,6 @@ export default function LiveTestPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* 🌟 LANGUAGE TOGGLE BUTTON 🌟 */}
               <button 
                 onClick={() => setLanguage(prev => prev === 'en' ? 'hi' : 'en')}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-blue-50 border border-gray-200 hover:border-indigo-200 text-gray-700 hover:text-indigo-700 rounded-xl shadow-sm font-bold text-sm transition-all active:scale-95"
@@ -510,7 +528,6 @@ export default function LiveTestPage() {
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                   <span className="bg-gray-100 text-gray-800 font-black px-4 py-2 rounded-xl text-sm border border-gray-200 shadow-inner">Question {currentIndex + 1} of {questions.length}</span>
                   
-                  {/* Language Toggle for Mobile Only */}
                   <button 
                     onClick={() => setLanguage(prev => prev === 'en' ? 'hi' : 'en')}
                     className="sm:hidden flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-bold text-xs"
@@ -805,8 +822,11 @@ export default function LiveTestPage() {
 
   return (
     <>
+      {/* 🚀 DYNAMIC SEO HELMET 🚀 */}
       <Helmet>
-        <title>Live Test Engine | Professional Mock CBT</title>
+        <title>{activePaper ? `${activePaper.title} | Live Mock Test` : 'Live Test Engine | Professional Mock CBT'}</title>
+        <meta name="description" content={activePaper ? `Practice the ${activePaper.examName} ${activePaper.year} previous year question paper online. Free mock test with detailed solutions.` : "Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction."} />
+        <meta name="keywords" content={activePaper ? `${activePaper.examName} ${activePaper.year} PYQ, ${activePaper.title} online test, free mock test` : "Live Mock Test, PYQ, NEET, JEE"} />
       </Helmet>
       {renderScreen()}
     </>
