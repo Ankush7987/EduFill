@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async'; 
-import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft } from 'lucide-react';
+import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft, GraduationCap } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom'; 
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
@@ -29,10 +29,9 @@ const SafeMath = ({ text }) => {
     });
   }, [text]); 
 
-  return <span className="whitespace-pre-wrap leading-relaxed">{parsedContent}</span>;
+  return <span className="whitespace-pre-wrap leading-relaxed break-words">{parsedContent}</span>;
 };
 
-// Helper to create SEO-friendly URLs (Slugs)
 const createSlug = (title) => {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 };
@@ -49,7 +48,6 @@ export default function LiveTestPage() {
   const [statusMap, setStatusMap] = useState(() => JSON.parse(sessionStorage.getItem('mockStatusMap')) || {}); 
   
   const [language, setLanguage] = useState(() => sessionStorage.getItem('mockLanguage') || 'en'); 
-
   const [endTime, setEndTime] = useState(() => Number(sessionStorage.getItem('mockEndTime')) || null);
   const [timeLeft, setTimeLeft] = useState(() => Number(sessionStorage.getItem('mockTimeLeft')) || 0); 
   const [scoreData, setScoreData] = useState(() => JSON.parse(sessionStorage.getItem('mockScoreData')) || { marks: 0, correct: 0, incorrect: 0, unattempted: 0 });
@@ -57,9 +55,11 @@ export default function LiveTestPage() {
   const [availablePapers, setAvailablePapers] = useState([]);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(window.innerWidth >= 1024);
+  
+  // 🌟 NAYA: Exam Category & Year State 🌟
+  const [selectedExamCategory, setSelectedExamCategory] = useState('All');
   const [selectedYear, setSelectedYear] = useState(null);
 
-  // 🚀 NAYA: State for smooth test submission 🚀
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getLocalizedText = (field) => {
@@ -141,15 +141,26 @@ export default function LiveTestPage() {
     fetchPapers();
   }, [testSlug]); 
 
+  // 🌟 EXAM FILTERING LOGIC 🌟
+  const filteredExams = useMemo(() => {
+     if (selectedExamCategory === 'All') return availablePapers;
+     return availablePapers.filter(p => (p.examName || '').toUpperCase().includes(selectedExamCategory.toUpperCase()));
+  }, [availablePapers, selectedExamCategory]);
+
+  const examCategoriesList = useMemo(() => {
+      const cats = new Set(availablePapers.map(p => p.examName || 'Other'));
+      return ['All', ...Array.from(cats)];
+  }, [availablePapers]);
+
   const groupedPapers = useMemo(() => {
     const groups = {};
-    availablePapers.forEach(paper => {
+    filteredExams.forEach(paper => {
       const year = paper.year || 'Other';
       if (!groups[year]) groups[year] = [];
       groups[year].push(paper);
     });
     return groups;
-  }, [availablePapers]);
+  }, [filteredExams]);
 
   const yearsList = Object.keys(groupedPapers).sort((a, b) => {
     if (a === 'Other') return 1;
@@ -157,6 +168,66 @@ export default function LiveTestPage() {
     return parseInt(b) - parseInt(a);
   });
 
+  // 🚀 FIXED: Advanced Calculation Logic with Section B Restriction (180 out of 200) 🚀
+  const calculateResult = useCallback((currentAnswers = selectedAnswers, currentQuestions = questions) => {
+    let correct = 0, incorrect = 0, unattempted = 0;
+    
+    // Group questions by subject to handle Section B limits
+    const subjectsMap = {};
+    currentQuestions.forEach(q => {
+        const subj = q.subject || 'General';
+        if (!subjectsMap[subj]) subjectsMap[subj] = { sectionA: [], sectionB: [] };
+        // Assume first 35 are Section A, next 15 are Section B (Standard NEET Pattern)
+        // If total is less than 50 per subject, just put them in A.
+        if (subjectsMap[subj].sectionA.length < 35) {
+            subjectsMap[subj].sectionA.push(q);
+        } else {
+            subjectsMap[subj].sectionB.push(q);
+        }
+    });
+
+    Object.keys(subjectsMap).forEach(subj => {
+        // Section A: Evaluate all
+        subjectsMap[subj].sectionA.forEach(q => {
+            const selected = currentAnswers[q.id];
+            if (selected === undefined) unattempted++;
+            else if (selected === q.correctOptionIndex) correct++;
+            else incorrect++;
+        });
+
+        // Section B: Evaluate only first 10 attempted
+        let attemptedInSectionB = 0;
+        subjectsMap[subj].sectionB.forEach(q => {
+            const selected = currentAnswers[q.id];
+            if (selected !== undefined) {
+                if (attemptedInSectionB < 10) {
+                    if (selected === q.correctOptionIndex) correct++;
+                    else incorrect++;
+                    attemptedInSectionB++;
+                } else {
+                     // Ignored excess attempts
+                     unattempted++; 
+                }
+            } else {
+                unattempted++;
+            }
+        });
+    });
+
+    setScoreData({ marks: (correct * 4) - (incorrect * 1), correct, incorrect, unattempted });
+  }, [selectedAnswers, questions]);
+
+  const submitTest = useCallback(() => {
+    setIsSubmitting(true);
+    setTimeout(() => {
+        calculateResult();
+        setIsSubmitting(false);
+        setScreenState('result');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 800); 
+  }, [calculateResult]);
+
+  // 🚀 FIXED: Auto-Submit Logic uses latest state securely 🚀
   useEffect(() => {
     let timer;
     if (screenState === 'exam' && endTime) {
@@ -168,12 +239,13 @@ export default function LiveTestPage() {
 
         if (remaining <= 0) {
           clearInterval(timer);
+          // If time is up, auto submit using the current closure values
           submitTest();
         }
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [screenState, endTime]);
+  }, [screenState, endTime, submitTest]);
 
   const formatTime = (totalSeconds) => {
     const h = Math.floor(totalSeconds / 3600);
@@ -214,6 +286,27 @@ export default function LiveTestPage() {
 
   const handleOptionSelect = (optionIndex) => {
     const qId = questions[currentIndex].id;
+    
+    // Check Section B constraint before selecting
+    const currentQ = questions[currentIndex];
+    const subj = currentQ.subject || 'General';
+    let subjQuestions = questions.filter(q => (q.subject || 'General') === subj);
+    
+    if (subjQuestions.length > 35) {
+        const sectionBQuestions = subjQuestions.slice(35);
+        const isInSectionB = sectionBQuestions.some(q => q.id === qId);
+        
+        if (isInSectionB && selectedAnswers[qId] === undefined) {
+             let attemptedB = 0;
+             sectionBQuestions.forEach(q => { if(selectedAnswers[q.id] !== undefined) attemptedB++; });
+             
+             if (attemptedB >= 10) {
+                 alert("You can only attempt a maximum of 10 questions in Section B of this subject.");
+                 return;
+             }
+        }
+    }
+
     setSelectedAnswers(prev => ({ ...prev, [qId]: optionIndex }));
     setStatusMap(prev => ({ ...prev, [qId]: 'answered' }));
   };
@@ -244,6 +337,7 @@ export default function LiveTestPage() {
       setStatusMap(prev => ({ ...prev, [currentQId]: 'unanswered' }));
     }
     setCurrentIndex(idx);
+    if(window.innerWidth < 1024) setIsPaletteOpen(false); // Auto close palette on mobile after navigating
   };
 
   const handleNext = () => {
@@ -258,32 +352,6 @@ export default function LiveTestPage() {
 
   const handlePrev = () => {
     if (currentIndex > 0) handleNavigate(currentIndex - 1);
-  };
-
-  // 🚀 FIXED: Freeze-Proof Smooth Submission 🚀
-  const submitTest = () => {
-    // Step 1: Immediately show the loading UI to student
-    setIsSubmitting(true);
-
-    // Step 2: Use setTimeout to release the main thread so browser can render the spinner
-    setTimeout(() => {
-        let correct = 0, incorrect = 0, unattempted = 0;
-        
-        // Background calculation
-        questions.forEach(q => {
-            const selected = selectedAnswers[q.id];
-            if (selected === undefined) unattempted++;
-            else if (selected === q.correctOptionIndex) correct++;
-            else incorrect++;
-        });
-        
-        setScoreData({ marks: (correct * 4) - (incorrect * 1), correct, incorrect, unattempted });
-        
-        // Step 3: Stop spinner, change screen, and scroll to top
-        setIsSubmitting(false);
-        setScreenState('result');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 800); // Give the UI 800ms to show the cool loading animation
   };
 
   const resetEngine = () => {
@@ -339,26 +407,46 @@ export default function LiveTestPage() {
       return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
           <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
+            
+            <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-8 gap-4 border-b border-gray-200 pb-6">
               <div>
-                <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">
-                    {selectedYear ? `Papers from ${selectedYear}` : 'Previous Year Papers'}
-                </h1>
-                <p className="text-gray-500 font-medium">Download official PDFs + Answer Keys, or practice on our Live CBT engine.</p>
+                <div className="flex items-center gap-2 mb-2">
+                   <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><GraduationCap size={24}/></div>
+                   <h1 className="text-3xl md:text-4xl font-black text-gray-900">
+                       {selectedYear ? `${selectedExamCategory !== 'All' ? selectedExamCategory : ''} Papers from ${selectedYear}` : 'Exam Library'}
+                   </h1>
+                </div>
+                <p className="text-gray-500 font-medium">Practice on India's most advanced CBT engine.</p>
               </div>
-              <div className="flex items-center gap-3">
+              
+              <div className="flex flex-wrap items-center gap-3">
                   {selectedYear && (
                       <button onClick={() => setSelectedYear(null)} className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-sm">
-                          <ArrowLeft size={18}/> Back to Years
+                          <ArrowLeft size={18}/> Years
                       </button>
                   )}
-                  <button onClick={() => navigate('/')} className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 px-6 py-2.5 rounded-xl font-bold transition-colors w-fit shadow-sm">Back to Home</button>
+                  <button onClick={() => navigate('/')} className="bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 px-6 py-2.5 rounded-xl font-bold transition-colors shadow-sm">Home</button>
               </div>
             </div>
 
+            {/* 🌟 NAYA: Exam Category Filter Tabs 🌟 */}
+            {!selectedYear && (
+               <div className="flex overflow-x-auto gap-2 mb-8 custom-scrollbar pb-2">
+                   {examCategoriesList.map(cat => (
+                       <button 
+                           key={cat}
+                           onClick={() => setSelectedExamCategory(cat)}
+                           className={`whitespace-nowrap px-5 py-2.5 rounded-full font-bold text-sm transition-all ${selectedExamCategory === cat ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'}`}
+                       >
+                           {cat}
+                       </button>
+                   ))}
+               </div>
+            )}
+
             {isLoadingDB ? (
               <div className="flex flex-col items-center justify-center py-32">
-                <Loader2 className="animate-spin text-blue-600 w-12 h-12 mb-4"/>
+                <Loader2 className="animate-spin text-indigo-600 w-12 h-12 mb-4"/>
                 <p className="text-gray-500 font-bold text-lg">Fetching library from secure vault...</p>
               </div>
             ) : availablePapers.length === 0 ? (
@@ -382,8 +470,8 @@ export default function LiveTestPage() {
                                     <FolderOpen size={32} />
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-2xl font-black text-gray-900">{year} Papers</h3>
-                                    <p className="text-sm font-bold text-gray-500 mt-1 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">{groupedPapers[year].length} Sets Available</p>
+                                    <h3 className="text-2xl font-black text-gray-900">{year}</h3>
+                                    <p className="text-sm font-bold text-gray-500 mt-1 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">{groupedPapers[year].length} Sets</p>
                                 </div>
                             </button>
                         ))}
@@ -396,20 +484,20 @@ export default function LiveTestPage() {
                           const testUrl = `/mock-test/${createSlug(paper.title)}`;
                           
                           return (
-                            <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col">
+                            <div key={paper.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:border-indigo-300 transition-all flex flex-col group">
                                 <div className="flex justify-between items-start mb-4">
-                                <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-blue-100">
+                                <div className="bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-indigo-100">
                                     {paper.examName || 'Mock Test'}
                                 </div>
                                 <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
                                 </div>
                                 
-                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="text-xl font-black text-gray-900 mb-4 hover:underline">
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="text-xl font-black text-gray-900 mb-4 group-hover:text-indigo-700 transition-colors line-clamp-2">
                                     {paper.title}
                                 </Link>
                                 
                                 <div className="flex flex-wrap gap-3 mb-6">
-                                <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-blue-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
+                                <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><FileText size={16} className="text-indigo-500"/> {paper.totalQuestions || paper.questions?.length || 0} Qs</div>
                                 <div className="flex items-center gap-1.5 text-xs text-gray-700 font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"><Clock size={16} className="text-amber-500"/> {formatTime((paper.durationMins || 180) * 60)}</div>
                                 </div>
                                 
@@ -423,7 +511,7 @@ export default function LiveTestPage() {
                                     </a>
                                 </div>
                                 
-                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm">
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black py-3.5 rounded-xl shadow-md transition-transform active:scale-95 text-sm">
                                     <PlayCircle size={18}/> Start Live Mock Test
                                 </Link>
                                 </div>
@@ -446,7 +534,7 @@ export default function LiveTestPage() {
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
               <div>
                 <h1 className="text-2xl md:text-3xl font-black text-gray-900 flex items-center gap-3">
-                  <AlertCircle className="text-blue-600"/> Test Instructions
+                  <AlertCircle className="text-indigo-600"/> Test Instructions
                 </h1>
                 <p className="text-gray-500 font-bold mt-2 ml-9">{activePaper?.title}</p>
               </div>
@@ -454,14 +542,14 @@ export default function LiveTestPage() {
             
             <div className="space-y-6 mb-8">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0">1</div>
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">1</div>
                 <div>
                   <h4 className="font-bold text-gray-800 text-lg mb-1">Test Pattern</h4>
-                  <p className="text-gray-600 text-sm font-medium">This test contains {questions.length} questions. Total duration is {formatTime((activePaper?.durationMins || 180) * 60)}. Timer cannot be paused.</p>
+                  <p className="text-gray-600 text-sm font-medium">This test contains {questions.length} questions. Maximum {Math.min(activePaper?.totalQuestions || 180, questions.length)} questions will be evaluated. Total duration is {formatTime((activePaper?.durationMins || 180) * 60)}. Timer cannot be paused.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0">2</div>
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">2</div>
                 <div>
                   <h4 className="font-bold text-gray-800 text-lg mb-1">Marking Scheme</h4>
                   <ul className="text-gray-600 text-sm font-medium space-y-1">
@@ -475,7 +563,7 @@ export default function LiveTestPage() {
 
             <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-4">
               <button onClick={() => resetEngine()} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancel</button>
-              <button onClick={beginExam} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
+              <button onClick={beginExam} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
                 <PlayCircle size={20}/> I am Ready to Begin
               </button>
             </div>
@@ -501,60 +589,59 @@ export default function LiveTestPage() {
       return (
         <div className="fixed inset-0 z-[100] bg-[#f8f9fa] flex flex-col font-sans overflow-hidden animate-in fade-in duration-300">
           
-          {/* 🚀 NAYA: Full Screen Loading Overlay while Submitting 🚀 */}
           {isSubmitting && (
             <div className="absolute inset-0 z-[999] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-200">
-                <Loader2 className="w-16 h-16 animate-spin text-emerald-600 mb-6 drop-shadow-md" />
-                <h2 className="text-3xl font-black text-gray-900 mb-2">Analyzing Responses</h2>
-                <p className="text-gray-500 font-bold tracking-widest uppercase">Please wait, generating your result...</p>
+                <Loader2 className="w-16 h-16 animate-spin text-indigo-600 mb-6 drop-shadow-md" />
+                <h2 className="text-3xl font-black text-gray-900 mb-2 text-center">Analyzing Responses</h2>
+                <p className="text-gray-500 font-bold tracking-widest uppercase text-center text-sm px-4">Applying NTA Marking Scheme & Generating Result...</p>
             </div>
           )}
 
           <header className="bg-white border-b border-gray-200 p-3 md:px-6 md:py-3 flex justify-between items-center shrink-0 shadow-sm z-10">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 text-white p-2 md:p-2.5 rounded-xl shadow-md hidden sm:block"><BookOpen size={24}/></div>
-              <div>
-                <p className="font-black text-lg md:text-xl text-gray-900 leading-tight truncate max-w-[150px] sm:max-w-xs md:max-w-md">{activePaper?.title}</p>
+            <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+              <div className="bg-indigo-600 text-white p-2 rounded-xl shadow-md hidden sm:block shrink-0"><BookOpen size={20}/></div>
+              <div className="min-w-0">
+                <p className="font-black text-sm md:text-xl text-gray-900 leading-tight truncate max-w-[140px] sm:max-w-xs md:max-w-md">{activePaper?.title}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] md:text-xs font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">{activeSubject}</span>
+                  <span className="text-[10px] md:text-xs font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">{activeSubject}</span>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 shrink-0">
               <button 
                 onClick={() => setLanguage(prev => prev === 'en' ? 'hi' : 'en')}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-blue-50 border border-gray-200 hover:border-indigo-200 text-gray-700 hover:text-indigo-700 rounded-xl shadow-sm font-bold text-sm transition-all active:scale-95"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-gray-50 hover:bg-indigo-50 border border-gray-200 text-gray-700 rounded-xl shadow-sm font-bold text-sm transition-all active:scale-95"
               >
                 <Languages size={18}/> 
                 <span>{language === 'en' ? 'English' : 'हिन्दी'}</span>
               </button>
 
-              <div className={`flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-xl font-black text-base md:text-lg shadow-sm border ${timeLeft < 300 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
-                <Clock size={18} /> <span className="tracking-wider">{formatTime(timeLeft)}</span>
+              <div className={`flex items-center gap-1.5 px-2 py-1.5 md:px-4 md:py-2 rounded-xl font-black text-sm md:text-lg shadow-sm border ${timeLeft < 300 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
+                <Clock size={16} /> <span className="tracking-wider">{formatTime(timeLeft)}</span>
               </div>
-              <button onClick={() => setIsPaletteOpen(!isPaletteOpen)} className="p-2 md:px-4 md:py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-xl shadow-sm flex items-center gap-2 font-bold text-sm transition-colors">
+              <button onClick={() => setIsPaletteOpen(!isPaletteOpen)} className="p-2 md:px-4 md:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm flex items-center gap-2 font-bold text-sm transition-colors">
                 {isPaletteOpen ? <PanelRightClose size={18}/> : <PanelRightOpen size={18}/>}
-                <span className="hidden md:inline">{isPaletteOpen ? 'Close Palette' : 'Open Palette'}</span>
+                <span className="hidden md:inline">{isPaletteOpen ? 'Close' : 'Palette'}</span>
               </button>
             </div>
           </header>
 
           <div className="flex-1 flex w-full h-full min-h-0 overflow-hidden relative">
-            <div className={`flex-1 bg-white flex flex-col min-h-0 transition-all duration-300 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-0 ${isPaletteOpen ? 'lg:mr-[380px]' : ''}`}>
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-10">
+            <div className={`flex-1 bg-white flex flex-col min-h-0 transition-all duration-300 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-0 ${isPaletteOpen ? 'lg:mr-[320px] xl:mr-[380px]' : ''}`}>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-10">
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
-                  <span className="bg-gray-100 text-gray-800 font-black px-4 py-2 rounded-xl text-sm border border-gray-200 shadow-inner">Question {currentIndex + 1} of {questions.length}</span>
+                  <span className="bg-gray-100 text-gray-800 font-black px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-xs md:text-sm border border-gray-200 shadow-inner">Question {currentIndex + 1} / {questions.length}</span>
                   
                   <button 
                     onClick={() => setLanguage(prev => prev === 'en' ? 'hi' : 'en')}
-                    className="sm:hidden flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-bold text-xs"
+                    className="sm:hidden flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-bold text-[10px]"
                   >
-                    <Languages size={14}/> {language === 'en' ? 'English' : 'हिन्दी'}
+                    <Languages size={12}/> {language === 'en' ? 'EN' : 'HI'}
                   </button>
 
                   <div className="hidden sm:flex gap-2">
-                    <span className="bg-blue-50 text-blue-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-blue-100 flex items-center gap-1.5">
+                    <span className="bg-green-50 text-green-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-green-100 flex items-center gap-1.5">
                       +4 Marks
                     </span>
                     <span className="bg-red-50 text-red-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-red-100 flex items-center gap-1.5">
@@ -563,46 +650,46 @@ export default function LiveTestPage() {
                   </div>
                 </div>
                 
-                <h3 className="text-lg md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed whitespace-pre-wrap">
+                <div className="text-base md:text-xl font-bold text-gray-800 mb-6 leading-relaxed whitespace-pre-wrap overflow-x-auto">
                   <SafeMath text={getLocalizedText(currentQ?.text)} />
-                </h3>
+                </div>
                 
                 {currentQ?.imageUrl && (
-                  <img src={currentQ.imageUrl} alt="Question figure" loading="lazy" className="max-w-full max-h-64 mb-8 rounded-lg border border-gray-200 shadow-sm p-1" />
+                  <img src={currentQ.imageUrl} alt="Question figure" loading="lazy" className="max-w-full max-h-48 md:max-h-64 mb-6 rounded-lg border border-gray-200 shadow-sm p-1" />
                 )}
 
                 {currentQ?.imageUrls && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     {currentQ.imageUrls.map((url, i) => (
                       <div key={i} className="flex flex-col items-center">
-                        <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-sm border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
-                        <img src={url} loading="lazy" alt={`Graph ${String.fromCharCode(65 + i)}`} className="w-full max-h-48 object-contain border border-gray-200 rounded-b-lg bg-white p-2" />
+                        <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-xs border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
+                        <img src={url} loading="lazy" alt={`Graph ${String.fromCharCode(65 + i)}`} className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-white p-2" />
                       </div>
                     ))}
                   </div>
                 )}
 
                 {currentQ?.textBelowImage && (
-                  <h3 className="text-lg md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed whitespace-pre-wrap">
+                  <div className="text-base md:text-xl font-bold text-gray-800 mb-6 leading-relaxed whitespace-pre-wrap overflow-x-auto">
                     <SafeMath text={getLocalizedText(currentQ.textBelowImage)} />
-                  </h3>
+                  </div>
                 )}
 
-                <div className="space-y-4 max-w-4xl">
+                <div className="space-y-3 max-w-4xl">
                   {getLocalizedOptions(currentQ?.options).map((opt, idx) => {
                     const isSelected = selectedAnswers[currentQ.id] === idx;
                     return (
-                      <label key={idx} className={`flex items-center p-4 rounded-2xl cursor-pointer border-2 transition-all duration-200 group ${isSelected ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-4 ring-indigo-600/10' : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'}`}>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 shrink-0 transition-colors ${isSelected ? 'border-indigo-600 bg-white' : 'border-gray-300 group-hover:border-indigo-400'}`}>
-                          {isSelected && <div className="w-3 h-3 bg-indigo-600 rounded-full" />}
+                      <label key={idx} className={`flex items-start p-3 md:p-4 rounded-2xl cursor-pointer border-2 transition-all duration-200 group ${isSelected ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'}`}>
+                        <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center mr-3 mt-0.5 shrink-0 transition-colors ${isSelected ? 'border-indigo-600 bg-white' : 'border-gray-300 group-hover:border-indigo-400'}`}>
+                          {isSelected && <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-indigo-600 rounded-full" />}
                         </div>
-                        <span className={`font-semibold text-lg ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
+                        <div className={`font-semibold text-sm md:text-lg overflow-x-auto ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
                           {opt?.startsWith?.('http') ? (
-                            <img src={opt} alt="Option Graph" loading="lazy" className="max-h-32 mix-blend-multiply rounded" />
+                            <img src={opt} alt="Option Graph" loading="lazy" className="max-h-24 md:max-h-32 mix-blend-multiply rounded" />
                           ) : (
                             <SafeMath text={opt} />
                           )}
-                        </span>
+                        </div>
                         <input type="radio" className="hidden" checked={isSelected} onChange={() => handleOptionSelect(idx)} />
                       </label>
                     );
@@ -610,69 +697,77 @@ export default function LiveTestPage() {
                 </div>
               </div>
 
-              <div className="bg-white border-t border-gray-200 p-4 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10 flex flex-col md:flex-row justify-between items-center gap-3">
-                <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                  <button onClick={markForReview} className="flex-1 md:flex-none bg-white text-gray-700 hover:text-orange-600 hover:bg-orange-50 border border-gray-300 font-bold py-3 px-5 rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                    <Target size={16}/> Mark for Review
+              <div className="bg-white border-t border-gray-200 p-3 md:p-4 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-10 flex flex-wrap justify-between items-center gap-2 md:gap-3">
+                <div className="flex gap-2 w-full md:w-auto order-2 md:order-1">
+                  <button onClick={markForReview} className="flex-1 bg-white text-gray-700 hover:text-orange-600 border border-gray-300 font-bold py-2 md:py-3 px-2 md:px-5 rounded-xl text-xs md:text-sm transition-all shadow-sm flex items-center justify-center gap-1.5">
+                    <Target size={14}/> <span className="hidden sm:inline">Mark for Review</span><span className="sm:hidden">Review</span>
                   </button>
-                  <button onClick={markAsRead} className="flex-1 md:flex-none bg-white text-gray-700 hover:text-purple-600 hover:bg-purple-50 border border-gray-300 font-bold py-3 px-5 rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                    <Eye size={16}/> Mark as Read
-                  </button>
-                  <button onClick={clearResponse} className="flex-1 md:flex-none bg-white text-gray-700 hover:text-red-600 hover:bg-red-50 border border-gray-300 font-bold py-3 px-5 rounded-xl text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                    <XCircle size={16}/> Clear
+                  <button onClick={clearResponse} className="flex-1 bg-white text-gray-700 hover:text-red-600 border border-gray-300 font-bold py-2 md:py-3 px-2 md:px-5 rounded-xl text-xs md:text-sm transition-all shadow-sm flex items-center justify-center gap-1.5">
+                    <XCircle size={14}/> Clear
                   </button>
                 </div>
                 
-                <div className="flex gap-2 w-full md:w-auto">
-                  <button onClick={handlePrev} disabled={currentIndex === 0} className="flex-1 md:flex-none bg-white hover:bg-gray-50 text-gray-800 disabled:opacity-50 border border-gray-300 font-black py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm text-sm">
-                    <ChevronLeft size={18}/> Prev
+                <div className="flex gap-2 w-full md:w-auto order-1 md:order-2">
+                  <button onClick={handlePrev} disabled={currentIndex === 0} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 disabled:opacity-50 border border-transparent font-black py-2.5 md:py-3 px-4 md:px-6 rounded-xl flex items-center justify-center gap-1 transition-all text-sm">
+                    <ChevronLeft size={16}/> Prev
                   </button>
-                  <button onClick={handleNext} className="flex-[2] md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm">
-                    {currentIndex === questions.length - 1 ? 'Save Question' : 'Save & Next'} <ChevronRight size={18}/>
+                  <button onClick={handleNext} className="flex-[2] md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2.5 md:py-3 px-6 md:px-8 rounded-xl flex items-center justify-center gap-1 transition-all shadow-md text-sm">
+                    {currentIndex === questions.length - 1 ? 'Save' : 'Save & Next'} <ChevronRight size={16}/>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className={`absolute lg:fixed right-0 top-[73px] bottom-0 w-full md:w-[380px] bg-white border-l border-gray-200 flex flex-col z-20 transition-transform duration-300 shadow-[-10px_0_30px_rgba(0,0,0,0.05)] ${isPaletteOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Mobile Palette Overlay */}
+            {isPaletteOpen && (
+              <div className="fixed inset-0 bg-gray-900/50 z-40 lg:hidden" onClick={() => setIsPaletteOpen(false)}></div>
+            )}
+
+            <div className={`fixed inset-y-0 right-0 lg:absolute lg:inset-y-auto lg:top-0 lg:bottom-0 w-[85vw] sm:w-[320px] xl:w-[380px] bg-white border-l border-gray-200 flex flex-col z-50 lg:z-20 transition-transform duration-300 shadow-2xl lg:shadow-none ${isPaletteOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+              
+              {/* Mobile Close Button */}
+              <div className="flex justify-between items-center p-3 border-b border-gray-100 lg:hidden bg-indigo-600 text-white">
+                 <h3 className="font-black text-sm">Question Palette</h3>
+                 <button onClick={() => setIsPaletteOpen(false)} className="p-1 bg-white/20 rounded-md"><XCircle size={18}/></button>
+              </div>
+
               <div className="bg-gray-50 border-b border-gray-200 shrink-0 flex overflow-x-auto custom-scrollbar">
                 {subjects.map(subj => (
                   <button 
                     key={subj} 
                     onClick={() => handleSubjectTabClick(subj)} 
-                    className={`flex-1 py-3 px-4 font-black text-xs md:text-sm whitespace-nowrap transition-colors border-b-2 ${activeSubject === subj ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
+                    className={`flex-1 py-3 px-3 font-black text-[10px] md:text-sm whitespace-nowrap transition-colors border-b-2 ${activeSubject === subj ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
                     {subj}
                   </button>
                 ))}
               </div>
 
-              <div className="p-4 border-b border-gray-100 shrink-0 grid grid-cols-2 gap-y-2 gap-x-1 text-xs font-bold text-gray-600">
-                <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-green-500 border border-green-600 shadow-sm"></div> Answered</div>
-                <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-red-500 border border-red-600 shadow-sm"></div> Not Answered</div>
-                <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-orange-400 border border-orange-500 shadow-sm"></div> Marked</div>
-                <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-purple-500 border border-purple-600 shadow-sm"></div> Read</div>
-                <div className="flex items-center gap-2 col-span-2"><div className="w-4 h-4 rounded bg-gray-100 border border-gray-300 shadow-sm"></div> Not Visited</div>
+              <div className="p-3 border-b border-gray-100 shrink-0 grid grid-cols-2 gap-y-2 gap-x-1 text-[10px] sm:text-xs font-bold text-gray-600">
+                <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-green-500 border border-green-600"></div> Answered</div>
+                <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-red-500 border border-red-600"></div> Not Answered</div>
+                <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-orange-400 border border-orange-500"></div> Marked</div>
+                <div className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded bg-gray-100 border border-gray-300"></div> Not Visited</div>
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 bg-gray-50/50">
-                <div className="grid grid-cols-5 gap-2.5">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-3 bg-gray-50/50">
+                <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2">
                   {questions.map((q, idx) => {
                     if ((q.subject || 'General') !== activeSubject) return null; 
                     
                     const status = statusMap[q.id];
                     const isCurrent = currentIndex === idx;
-                    let bgColor = "bg-white text-gray-700 border-gray-300 hover:bg-gray-100 shadow-sm"; 
+                    let bgColor = "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"; 
                     
-                    if (status === 'answered') bgColor = "bg-green-500 text-white border-green-600 shadow-md";
-                    else if (status === 'marked') bgColor = "bg-orange-400 text-white border-orange-500 shadow-md";
-                    else if (status === 'unanswered') bgColor = "bg-red-500 text-white border-red-600 shadow-md";
-                    else if (status === 'read') bgColor = "bg-purple-500 text-white border-purple-600 shadow-md";
+                    if (status === 'answered') bgColor = "bg-green-500 text-white border-green-600 shadow-sm";
+                    else if (status === 'marked') bgColor = "bg-orange-400 text-white border-orange-500 shadow-sm";
+                    else if (status === 'unanswered') bgColor = "bg-red-500 text-white border-red-600 shadow-sm";
+                    else if (status === 'read') bgColor = "bg-purple-500 text-white border-purple-600 shadow-sm";
 
                     return (
                       <button 
                         key={q.id || idx} 
                         onClick={() => handleNavigate(idx)} 
-                        className={`w-full aspect-square rounded-xl flex items-center justify-center font-black text-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${bgColor} ${isCurrent ? 'ring-4 ring-indigo-500/30 ring-offset-2 scale-110 !border-indigo-600' : ''}`}>
+                        className={`w-full aspect-square rounded-lg flex items-center justify-center font-black text-[10px] sm:text-xs border transition-all ${bgColor} ${isCurrent ? 'ring-2 ring-indigo-600 ring-offset-1 scale-105 !border-indigo-600' : ''}`}>
                         {idx + 1}
                       </button>
                     );
@@ -680,14 +775,13 @@ export default function LiveTestPage() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-gray-200 bg-white shrink-0">
-                {/* 🚀 Changed to use the new submit function */}
+              <div className="p-3 border-t border-gray-200 bg-white shrink-0">
                 <button 
-                  onClick={() => { if(window.confirm("Are you sure you want to submit the test? You cannot change answers later.")) submitTest(); }} 
+                  onClick={() => { if(window.confirm("Are you sure you want to submit the test?")) submitTest(); }} 
                   disabled={isSubmitting}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 text-lg flex justify-center items-center gap-2"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 text-sm sm:text-base flex justify-center items-center gap-2"
                 >
-                  <CheckCircle size={22}/> {isSubmitting ? 'Calculating...' : 'Submit Final Test'}
+                  <CheckCircle size={18}/> {isSubmitting ? 'Calculating...' : 'Submit Test'}
                 </button>
               </div>
 
@@ -700,6 +794,7 @@ export default function LiveTestPage() {
     // --- RESULT SCREEN ---
     if (screenState === 'result') {
       const totalAttempted = scoreData.correct + scoreData.incorrect;
+      // NEET Accuracy calculation based on attempted questions
       const accuracy = totalAttempted > 0 ? Math.round((scoreData.correct / totalAttempted) * 100) : 0;
       
       let remark = "Keep Practicing! 📚";
@@ -708,7 +803,7 @@ export default function LiveTestPage() {
       else if (accuracy >= 60) { remark = "Good Job! Keep it up. 👍"; remarkColor = "text-green-200"; }
 
       return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4 font-sans">
+        <div className="min-h-screen bg-gray-50 py-6 px-4 font-sans">
           <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
             
             <div className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-blue-800 p-8 md:p-12 text-white text-center relative overflow-hidden">
@@ -716,124 +811,124 @@ export default function LiveTestPage() {
               
               <button onClick={resetEngine} className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors z-10"><XCircle size={24}/></button>
               
-              <Trophy size={72} className="mx-auto mb-4 text-yellow-400 drop-shadow-lg" />
-              <p className="text-sm uppercase tracking-widest text-indigo-200 font-bold mb-2">Performance Report</p>
-              <h2 className="text-3xl md:text-5xl font-black mb-3 drop-shadow-md">{activePaper?.title}</h2>
-              <p className={`text-xl font-bold ${remarkColor}`}>{remark}</p>
+              <Trophy size={64} className="mx-auto mb-4 text-yellow-400 drop-shadow-lg" />
+              <p className="text-xs uppercase tracking-widest text-indigo-200 font-bold mb-2">Performance Report</p>
+              <h2 className="text-2xl md:text-4xl font-black mb-3 drop-shadow-md">{activePaper?.title}</h2>
+              <p className={`text-lg font-bold ${remarkColor}`}>{remark}</p>
               
-              <button onClick={handleShare} className="mt-8 mx-auto flex items-center justify-center gap-2 bg-white text-indigo-800 hover:bg-indigo-50 font-black py-3 px-8 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 z-10 relative">
-                <Share2 size={20} /> Share Score
+              <button onClick={handleShare} className="mt-8 mx-auto flex items-center justify-center gap-2 bg-white text-indigo-800 hover:bg-indigo-50 font-black py-3 px-8 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 z-10 relative text-sm md:text-base">
+                <Share2 size={18} /> Share Score
               </button>
             </div>
             
-            <div className="p-6 md:p-10 bg-gray-50/50">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-                <div className="bg-white p-6 rounded-2xl border-l-4 border-l-blue-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
-                  <Award size={24} className="text-blue-100 absolute top-4 right-4" />
-                  <p className="text-gray-500 text-xs font-black uppercase mb-1">Total Score</p>
-                  <p className="text-4xl font-black text-blue-700">{scoreData.marks}</p>
+            <div className="p-4 md:p-10 bg-gray-50/50">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8 md:mb-12">
+                <div className="bg-white p-4 md:p-6 rounded-2xl border-l-4 border-l-blue-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
+                  <Award size={20} className="text-blue-100 absolute top-4 right-4 hidden sm:block" />
+                  <p className="text-gray-500 text-[10px] md:text-xs font-black uppercase mb-1">Total Score</p>
+                  <p className="text-2xl md:text-4xl font-black text-blue-700">{scoreData.marks}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border-l-4 border-l-green-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
-                  <Target size={24} className="text-green-100 absolute top-4 right-4" />
-                  <p className="text-gray-500 text-xs font-black uppercase mb-1">Accuracy</p>
-                  <p className="text-4xl font-black text-green-600">{accuracy}%</p>
+                <div className="bg-white p-4 md:p-6 rounded-2xl border-l-4 border-l-green-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
+                  <Target size={20} className="text-green-100 absolute top-4 right-4 hidden sm:block" />
+                  <p className="text-gray-500 text-[10px] md:text-xs font-black uppercase mb-1">Accuracy</p>
+                  <p className="text-2xl md:text-4xl font-black text-green-600">{accuracy}%</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border-l-4 border-l-red-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
-                  <AlertCircle size={24} className="text-red-100 absolute top-4 right-4" />
-                  <p className="text-gray-500 text-xs font-black uppercase mb-1">Incorrect</p>
-                  <p className="text-4xl font-black text-red-600">{scoreData.incorrect}</p>
+                <div className="bg-white p-4 md:p-6 rounded-2xl border-l-4 border-l-red-500 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
+                  <AlertCircle size={20} className="text-red-100 absolute top-4 right-4 hidden sm:block" />
+                  <p className="text-gray-500 text-[10px] md:text-xs font-black uppercase mb-1">Incorrect</p>
+                  <p className="text-2xl md:text-4xl font-black text-red-600">{scoreData.incorrect}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border-l-4 border-l-gray-400 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
-                  <Eye size={24} className="text-gray-200 absolute top-4 right-4" />
-                  <p className="text-gray-500 text-xs font-black uppercase mb-1">Skipped / Read</p>
-                  <p className="text-4xl font-black text-gray-600">{scoreData.unattempted}</p>
+                <div className="bg-white p-4 md:p-6 rounded-2xl border-l-4 border-l-gray-400 shadow-sm border-t border-r border-b border-gray-100 relative overflow-hidden">
+                  <Eye size={20} className="text-gray-200 absolute top-4 right-4 hidden sm:block" />
+                  <p className="text-gray-500 text-[10px] md:text-xs font-black uppercase mb-1">Skipped</p>
+                  <p className="text-2xl md:text-4xl font-black text-gray-600">{scoreData.unattempted}</p>
                 </div>
               </div>
               
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4 border-b border-gray-200 pb-4">
-                <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3"><BarChart3 size={28} className="text-indigo-600"/> Detailed Analysis</h3>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4 border-b border-gray-200 pb-4">
+                <h3 className="text-xl md:text-2xl font-black text-gray-900 flex items-center gap-2"><BarChart3 size={24} className="text-indigo-600"/> Detailed Analysis</h3>
                 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setLanguage(prev => prev === 'en' ? 'hi' : 'en')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 rounded-xl font-bold shadow-sm transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 rounded-xl font-bold shadow-sm transition-colors text-xs md:text-sm"
                   >
-                    <Languages size={18}/> 
+                    <Languages size={16}/> 
                     <span className="hidden sm:inline">{language === 'en' ? 'Switch to Hindi' : 'Switch to English'}</span>
                   </button>
 
-                  <a href={activePaper?.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!activePaper?.answerKeyPdfUrl || activePaper?.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex items-center justify-center gap-2 bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 px-5 py-2.5 rounded-xl font-bold shadow-sm transition-colors">
-                    <Key size={18}/> Download Key
+                  <a href={activePaper?.answerKeyPdfUrl || '#'} target="_blank" rel="noreferrer" onClick={(e) => { if(!activePaper?.answerKeyPdfUrl || activePaper?.answerKeyPdfUrl === '#') { e.preventDefault(); alert('Answer Key not available'); } }} className="flex items-center justify-center gap-1.5 bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 px-4 py-2 rounded-xl font-bold shadow-sm transition-colors text-xs md:text-sm">
+                    <Key size={16}/> Download Key
                   </a>
                 </div>
               </div>
 
-              <div className="space-y-8">
+              <div className="space-y-6 md:space-y-8">
                 {questions.map((q, idx) => {
                   const userAns = selectedAnswers[q.id];
                   const isCorrect = userAns === q.correctOptionIndex;
                   const isUnattempted = userAns === undefined;
                   
                   return (
-                    <div key={q.id || idx} className={`bg-white p-6 md:p-8 rounded-3xl border-2 shadow-sm ${isCorrect ? 'border-green-200' : isUnattempted ? 'border-gray-200' : 'border-red-200'}`}>
+                    <div key={q.id || idx} className={`bg-white p-4 md:p-8 rounded-3xl border-2 shadow-sm ${isCorrect ? 'border-green-200' : isUnattempted ? 'border-gray-200' : 'border-red-200'}`}>
                       <div className="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
-                        <div className="flex gap-4">
-                          <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center font-black text-white ${isCorrect ? 'bg-green-500' : isUnattempted ? 'bg-gray-400' : 'bg-red-500'}`}>
+                        <div className="flex gap-3 md:gap-4 w-full">
+                          <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-white text-sm md:text-base ${isCorrect ? 'bg-green-500' : isUnattempted ? 'bg-gray-400' : 'bg-red-500'}`}>
                             {idx + 1}
                           </div>
-                          <div className="pt-1 font-bold text-gray-900 text-lg leading-relaxed">
+                          <div className="pt-0.5 md:pt-1 font-bold text-gray-900 text-sm md:text-lg leading-relaxed overflow-x-auto w-full">
                             <SafeMath text={getLocalizedText(q.text)} />
                           </div>
                         </div>
-                        <span className="shrink-0 text-xs font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">{q.subject || 'General'}</span>
+                        <span className="hidden sm:block shrink-0 text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{q.subject || 'General'}</span>
                       </div>
                       
-                      {q.imageUrl && <img src={q.imageUrl} alt="Explanation figure" loading="lazy" className="max-w-full max-h-48 mb-6 border border-gray-200 rounded-xl p-2 bg-gray-50 mx-auto sm:mx-0" />}
+                      {q.imageUrl && <img src={q.imageUrl} alt="Explanation figure" loading="lazy" className="max-w-full max-h-40 md:max-h-48 mb-6 border border-gray-200 rounded-xl p-1 md:p-2 bg-gray-50 mx-auto sm:mx-0" />}
 
                       {q.imageUrls && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                           {q.imageUrls.map((url, i) => (
                             <div key={i} className="flex flex-col items-center">
-                              <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-sm border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
-                              <img src={url} alt={`Graph ${String.fromCharCode(65 + i)}`} loading="lazy" className="w-full max-h-48 object-contain border border-gray-200 rounded-b-lg bg-gray-50 p-2" />
+                              <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-xs border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
+                              <img src={url} alt={`Graph ${String.fromCharCode(65 + i)}`} loading="lazy" className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-gray-50 p-2" />
                             </div>
                           ))}
                         </div>
                       )}
 
                       {q.textBelowImage && (
-                        <p className="font-bold text-gray-900 mb-6 text-lg pl-14">
+                        <div className="font-bold text-gray-900 mb-6 text-sm md:text-lg pl-0 sm:pl-14 overflow-x-auto">
                           <SafeMath text={getLocalizedText(q.textBelowImage)} />
-                        </p>
+                        </div>
                       )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 pl-0 sm:pl-14">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 mb-6 pl-0 sm:pl-12 md:pl-14">
                         {getLocalizedOptions(q.options).map((opt, oIdx) => (
-                          <div key={oIdx} className={`p-4 rounded-xl text-sm md:text-base flex justify-between items-center font-bold transition-all ${oIdx === q.correctOptionIndex ? "bg-green-50 border-2 border-green-500 text-green-800" : (userAns === oIdx && !isCorrect) ? "bg-red-50 border-2 border-red-500 text-red-800" : "border-2 border-gray-100 bg-gray-50 text-gray-600"}`}>
+                          <div key={oIdx} className={`p-3 md:p-4 rounded-xl text-xs md:text-sm flex justify-between items-center font-bold transition-all border-2 overflow-x-auto ${oIdx === q.correctOptionIndex ? "bg-green-50 border-green-500 text-green-800" : (userAns === oIdx && !isCorrect) ? "bg-red-50 border-red-500 text-red-800" : "border-gray-100 bg-gray-50 text-gray-600"}`}>
                             <span>
                               {opt?.startsWith?.('http') ? (
-                                <img src={opt} alt="Option Graph" loading="lazy" className="max-h-24 md:max-h-32 mix-blend-multiply rounded" />
+                                <img src={opt} alt="Option Graph" loading="lazy" className="max-h-20 md:max-h-32 mix-blend-multiply rounded" />
                               ) : (
                                 <SafeMath text={opt} />
                               )}
                             </span>
-                            {oIdx === q.correctOptionIndex && <CheckCircle size={22} className="text-green-600 drop-shadow-sm"/>}
-                            {(userAns === oIdx && !isCorrect) && <XCircle size={22} className="text-red-600 drop-shadow-sm"/>}
+                            {oIdx === q.correctOptionIndex && <CheckCircle size={18} className="text-green-600 drop-shadow-sm shrink-0 ml-2"/>}
+                            {(userAns === oIdx && !isCorrect) && <XCircle size={18} className="text-red-600 drop-shadow-sm shrink-0 ml-2"/>}
                           </div>
                         ))}
                       </div>
 
-                      <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 text-sm font-medium text-gray-700 mt-6 ml-0 sm:ml-14">
-                        <h4 className="text-indigo-800 font-black text-base flex items-center gap-2 mb-3"><FileText size={20}/> {language === 'en' ? 'Expert Explanation' : 'विशेषज्ञ व्याख्या'}</h4> 
-                        <div className="text-gray-700 leading-relaxed text-base"><SafeMath text={getLocalizedText(q.explanation) || (language === 'en' ? "Refer to the official answer key for detailed steps." : "विस्तृत चरणों के लिए आधिकारिक उत्तर कुंजी देखें।")} /></div>
+                      <div className="bg-indigo-50/50 p-4 md:p-6 rounded-2xl border border-indigo-100 text-xs md:text-sm font-medium text-gray-700 mt-6 ml-0 sm:pl-12 md:ml-14">
+                        <h4 className="text-indigo-800 font-black text-sm md:text-base flex items-center gap-1.5 mb-2 md:mb-3"><FileText size={16}/> {language === 'en' ? 'Expert Explanation' : 'विशेषज्ञ व्याख्या'}</h4> 
+                        <div className="text-gray-700 leading-relaxed overflow-x-auto"><SafeMath text={getLocalizedText(q.explanation) || (language === 'en' ? "Refer to the official answer key for detailed steps." : "विस्तृत चरणों के लिए आधिकारिक उत्तर कुंजी देखें।")} /></div>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="mt-12 flex justify-center">
-                 <button onClick={resetEngine} className="bg-gray-900 hover:bg-black text-white font-black py-4 px-12 rounded-full text-lg shadow-xl transition-transform hover:scale-105 active:scale-95">Return to Dashboard</button>
+              <div className="mt-10 flex justify-center">
+                 <button onClick={resetEngine} className="bg-gray-900 hover:bg-black text-white font-black py-3.5 md:py-4 px-8 md:px-12 rounded-full text-sm md:text-lg shadow-xl transition-transform hover:scale-105 active:scale-95">Return to Dashboard</button>
               </div>
             </div>
           </div>
