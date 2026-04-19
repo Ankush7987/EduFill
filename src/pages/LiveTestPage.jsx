@@ -5,43 +5,38 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
 
-import katex from 'katex';
+// 🚀 NAYA: Markdown & Math Imports
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 const SafeMath = ({ text }) => {
   if (!text) return null;
   
-  const parsedContent = useMemo(() => {
-    const cleanText = text.toString().replace(/\\\\/g, '\\');
-    const parts = cleanText.split(/(\$[\s\S]*?\$)/g);
+  // Clean backslashes if any exist from JSON stringification
+  const cleanText = text.toString().replace(/\\\\/g, '\\');
 
-    return parts.map((part, index) => {
-      if (part.startsWith('$') && part.endsWith('$')) {
-        const math = part.slice(1, -1);
-        try {
-          const html = katex.renderToString(math, { throwOnError: false });
-          return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
-        } catch (e) {
-          return <span key={index}>{part}</span>;
-        }
-      }
-      return <span key={index}>{part}</span>;
-    });
-  }, [text]); 
-
-  return <span className="whitespace-pre-wrap leading-relaxed break-words">{parsedContent}</span>;
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+      >
+        {cleanText}
+      </ReactMarkdown>
+    </div>
+  );
 };
 
 const createSlug = (title) => {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 };
 
-// 🚀 NAYA: Helper to auto-chunk subjects if JSON is missing them
 const getSafeSubject = (q, idx, totalLen) => {
     if (q.subject) return q.subject;
-    // If it's a 200-question test, safely split into 4 subjects of 50
     if (totalLen >= 200) return `Subject_${Math.floor(idx / 50) + 1}`;
-    // If it's a 180-question test, safely split into 4 subjects of 45
     if (totalLen >= 180) return `Subject_${Math.floor(idx / 45) + 1}`;
     return 'General';
 };
@@ -86,15 +81,12 @@ export default function LiveTestPage() {
     return optionsField;
   };
 
-  // 🚀 FIXED: Perfect count for Evaluated Questions (Max 180)
   const evaluableQuestionsCount = useMemo(() => {
       const qs = activePaper?.questions || questions || [];
       if (!qs || qs.length === 0) return 0;
       
-      // If it's a standard full test, ALWAYS cap at 180
       if (qs.length >= 180) return 180;
       
-      // If it's a partial test, calculate based on NTA pattern
       let total = 0;
       const subjs = {};
       qs.forEach((q, idx) => {
@@ -199,7 +191,6 @@ export default function LiveTestPage() {
     return parseInt(b) - parseInt(a);
   });
 
-  // 🚀 FIXED: Permanent strict NTA calculation (180 questions / 720 marks guaranteed) 🚀
   const calculateResult = useCallback((currentAnswers = selectedAnswers, currentQuestions = questions) => {
     let correct = 0, incorrect = 0, unattempted = 0;
     
@@ -210,7 +201,6 @@ export default function LiveTestPage() {
         
         if (!subjectsMap[subj]) subjectsMap[subj] = { secA: [], secB: [] };
         
-        // Ensure Section A gets exact 35 questions first
         if (subjectsMap[subj].secA.length < 35) {
             subjectsMap[subj].secA.push(q);
         } else {
@@ -221,7 +211,6 @@ export default function LiveTestPage() {
     Object.keys(subjectsMap).forEach(subj => {
         const { secA, secB } = subjectsMap[subj];
 
-        // Evaluate Section A (All 35 Compulsory)
         secA.forEach(q => {
             const selected = currentAnswers[q.id];
             if (selected === undefined) unattempted++;
@@ -229,7 +218,6 @@ export default function LiveTestPage() {
             else incorrect++;
         });
 
-        // Evaluate Section B (Only first 10 attempted are evaluated)
         if (secB.length > 0) {
             let validAttemptsInB = 0;
             secB.forEach(q => {
@@ -243,14 +231,12 @@ export default function LiveTestPage() {
                 }
             });
             
-            // Only count unattempted up to the mandatory limit (10)
             const mandatoryInB = Math.min(10, secB.length);
             const unattemptedInB = mandatoryInB - validAttemptsInB;
             if (unattemptedInB > 0) unattempted += unattemptedInB;
         }
     });
 
-    // Final security check: Marks cannot exceed 720
     let totalMarks = (correct * 4) - (incorrect * 1);
     if (totalMarks < 0) totalMarks = 0;
 
@@ -326,11 +312,9 @@ export default function LiveTestPage() {
     const qId = questions[currentIndex].id;
     const currentQ = questions[currentIndex];
     
-    // Securely identify which subject this question belongs to
     const subj = getSafeSubject(currentQ, currentIndex, questions.length);
     let subjQuestions = questions.filter((q, idx) => getSafeSubject(q, idx, questions.length) === subj);
     
-    // Section B Attempt Restriction
     if (subjQuestions.length > 35) {
         const sectionBQuestions = subjQuestions.slice(35);
         const isInSectionB = sectionBQuestions.some(q => q.id === qId);
@@ -751,12 +735,10 @@ export default function LiveTestPage() {
                   <SafeMath text={getLocalizedText(currentQ?.text)} />
                 </div>
                 
-                {/* 🚀 FIXED: Exam Screen Image Logic */}
                 {currentQ?.imageUrl && getLocalizedText(currentQ.imageUrl) && (
                   <img src={getLocalizedText(currentQ.imageUrl)} alt="Question figure" loading="lazy" className="max-w-full max-h-48 md:max-h-64 mb-6 rounded-lg border border-gray-200 shadow-sm p-1" />
                 )}
 
-                {/* 🚀 FIXED: Exam Screen Multiple Images Logic */}
                 {currentQ?.imageUrls && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     {getLocalizedOptions(currentQ.imageUrls).map((url, i) => (
@@ -782,7 +764,7 @@ export default function LiveTestPage() {
                         <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center mr-3 mt-0.5 shrink-0 transition-colors ${isSelected ? 'border-indigo-600 bg-white' : 'border-gray-300 group-hover:border-indigo-400'}`}>
                           {isSelected && <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-indigo-600 rounded-full" />}
                         </div>
-                        <div className={`font-semibold text-sm md:text-lg overflow-x-auto ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
+                        <div className={`font-semibold text-sm md:text-lg overflow-x-auto w-full ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
                           {opt?.startsWith?.('http') ? (
                             <img src={opt} alt="Option Graph" loading="lazy" className="max-h-24 md:max-h-32 mix-blend-multiply rounded" />
                           ) : (
@@ -979,12 +961,10 @@ export default function LiveTestPage() {
                         <span className="hidden sm:block shrink-0 text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{getSafeSubject(q, idx, questions.length)}</span>
                       </div>
                       
-                      {/* 🚀 FIXED: Result Screen Image Logic */}
                       {q.imageUrl && getLocalizedText(q.imageUrl) && (
                         <img src={getLocalizedText(q.imageUrl)} alt="Explanation figure" loading="lazy" className="max-w-full max-h-40 md:max-h-48 mb-6 border border-gray-200 rounded-xl p-1 md:p-2 bg-gray-50 mx-auto sm:mx-0" />
                       )}
 
-                      {/* 🚀 FIXED: Result Screen Multiple Images Logic */}
                       {q.imageUrls && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                           {getLocalizedOptions(q.imageUrls).map((url, i) => (

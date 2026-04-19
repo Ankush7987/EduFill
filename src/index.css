@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Markdown Tables and Text Styling */
+.markdown-body {
+  width: 100%;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+.markdown-body th, .markdown-body td {
+  border: 1px solid #e5e7eb; 
+  padding: 0.5rem 1rem;
+  text-align: left;
+}
+
+.markdown-body th {
+  background-color: #f9fafb; 
+  font-weight: 800;
+  color: #374151; 
+}
+
+.markdown-body strong {
+  font-weight: 800;
+  color: #111827;
+}
