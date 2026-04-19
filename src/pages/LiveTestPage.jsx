@@ -36,6 +36,16 @@ const createSlug = (title) => {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 };
 
+// 🚀 NAYA: Helper to auto-chunk subjects if JSON is missing them
+const getSafeSubject = (q, idx, totalLen) => {
+    if (q.subject) return q.subject;
+    // If it's a 200-question test, safely split into 4 subjects of 50
+    if (totalLen >= 200) return `Subject_${Math.floor(idx / 50) + 1}`;
+    // If it's a 180-question test, safely split into 4 subjects of 45
+    if (totalLen >= 180) return `Subject_${Math.floor(idx / 45) + 1}`;
+    return 'General';
+};
+
 export default function LiveTestPage() {
   const navigate = useNavigate();
   const { testSlug } = useParams(); 
@@ -56,10 +66,8 @@ export default function LiveTestPage() {
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(window.innerWidth >= 1024);
   
-  // 🌟 NAYA: Exam Category & Year State 🌟
   const [selectedExamCategory, setSelectedExamCategory] = useState('All');
   const [selectedYear, setSelectedYear] = useState(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getLocalizedText = (field) => {
@@ -77,6 +85,28 @@ export default function LiveTestPage() {
     }
     return optionsField;
   };
+
+  // 🚀 FIXED: Perfect count for Evaluated Questions (Max 180)
+  const evaluableQuestionsCount = useMemo(() => {
+      const qs = activePaper?.questions || questions || [];
+      if (!qs || qs.length === 0) return 0;
+      
+      // If it's a standard full test, ALWAYS cap at 180
+      if (qs.length >= 180) return 180;
+      
+      // If it's a partial test, calculate based on NTA pattern
+      let total = 0;
+      const subjs = {};
+      qs.forEach((q, idx) => {
+          let s = getSafeSubject(q, idx, qs.length);
+          if(!subjs[s]) subjs[s] = 0;
+          subjs[s]++;
+      });
+      Object.values(subjs).forEach(c => {
+          total += (c > 35) ? 35 + Math.min(10, c - 35) : c;
+      });
+      return total;
+  }, [activePaper, questions]);
 
   useEffect(() => {
     sessionStorage.setItem('mockScreenState', screenState);
@@ -131,9 +161,11 @@ export default function LiveTestPage() {
       if (testSlug && fetchedPapers.length > 0 && screenState === 'library') {
           const targetPaper = fetchedPapers.find(p => createSlug(p.title) === testSlug);
           if (targetPaper) {
-              startInstructions(targetPaper);
+              setActivePaper(targetPaper);
+              setQuestions(targetPaper.questions || []);
+              setScreenState('test-landing');
           } else {
-              navigate('/mock-test');
+              navigate('/mock-test', { replace: true });
           }
       }
     };
@@ -141,7 +173,6 @@ export default function LiveTestPage() {
     fetchPapers();
   }, [testSlug]); 
 
-  // 🌟 EXAM FILTERING LOGIC 🌟
   const filteredExams = useMemo(() => {
      if (selectedExamCategory === 'All') return availablePapers;
      return availablePapers.filter(p => (p.examName || '').toUpperCase().includes(selectedExamCategory.toUpperCase()));
@@ -168,53 +199,62 @@ export default function LiveTestPage() {
     return parseInt(b) - parseInt(a);
   });
 
-  // 🚀 FIXED: Advanced Calculation Logic with Section B Restriction (180 out of 200) 🚀
+  // 🚀 FIXED: Permanent strict NTA calculation (180 questions / 720 marks guaranteed) 🚀
   const calculateResult = useCallback((currentAnswers = selectedAnswers, currentQuestions = questions) => {
     let correct = 0, incorrect = 0, unattempted = 0;
     
-    // Group questions by subject to handle Section B limits
-    const subjectsMap = {};
-    currentQuestions.forEach(q => {
-        const subj = q.subject || 'General';
-        if (!subjectsMap[subj]) subjectsMap[subj] = { sectionA: [], sectionB: [] };
-        // Assume first 35 are Section A, next 15 are Section B (Standard NEET Pattern)
-        // If total is less than 50 per subject, just put them in A.
-        if (subjectsMap[subj].sectionA.length < 35) {
-            subjectsMap[subj].sectionA.push(q);
+    let subjectsMap = {};
+    
+    currentQuestions.forEach((q, index) => {
+        let subj = getSafeSubject(q, index, currentQuestions.length);
+        
+        if (!subjectsMap[subj]) subjectsMap[subj] = { secA: [], secB: [] };
+        
+        // Ensure Section A gets exact 35 questions first
+        if (subjectsMap[subj].secA.length < 35) {
+            subjectsMap[subj].secA.push(q);
         } else {
-            subjectsMap[subj].sectionB.push(q);
+            subjectsMap[subj].secB.push(q);
         }
     });
 
     Object.keys(subjectsMap).forEach(subj => {
-        // Section A: Evaluate all
-        subjectsMap[subj].sectionA.forEach(q => {
+        const { secA, secB } = subjectsMap[subj];
+
+        // Evaluate Section A (All 35 Compulsory)
+        secA.forEach(q => {
             const selected = currentAnswers[q.id];
             if (selected === undefined) unattempted++;
             else if (selected === q.correctOptionIndex) correct++;
             else incorrect++;
         });
 
-        // Section B: Evaluate only first 10 attempted
-        let attemptedInSectionB = 0;
-        subjectsMap[subj].sectionB.forEach(q => {
-            const selected = currentAnswers[q.id];
-            if (selected !== undefined) {
-                if (attemptedInSectionB < 10) {
-                    if (selected === q.correctOptionIndex) correct++;
-                    else incorrect++;
-                    attemptedInSectionB++;
-                } else {
-                     // Ignored excess attempts
-                     unattempted++; 
+        // Evaluate Section B (Only first 10 attempted are evaluated)
+        if (secB.length > 0) {
+            let validAttemptsInB = 0;
+            secB.forEach(q => {
+                const selected = currentAnswers[q.id];
+                if (selected !== undefined) {
+                    if (validAttemptsInB < 10) {
+                        if (selected === q.correctOptionIndex) correct++;
+                        else incorrect++;
+                        validAttemptsInB++;
+                    }
                 }
-            } else {
-                unattempted++;
-            }
-        });
+            });
+            
+            // Only count unattempted up to the mandatory limit (10)
+            const mandatoryInB = Math.min(10, secB.length);
+            const unattemptedInB = mandatoryInB - validAttemptsInB;
+            if (unattemptedInB > 0) unattempted += unattemptedInB;
+        }
     });
 
-    setScoreData({ marks: (correct * 4) - (incorrect * 1), correct, incorrect, unattempted });
+    // Final security check: Marks cannot exceed 720
+    let totalMarks = (correct * 4) - (incorrect * 1);
+    if (totalMarks < 0) totalMarks = 0;
+
+    setScoreData({ marks: totalMarks, correct, incorrect, unattempted });
   }, [selectedAnswers, questions]);
 
   const submitTest = useCallback(() => {
@@ -227,7 +267,6 @@ export default function LiveTestPage() {
     }, 800); 
   }, [calculateResult]);
 
-  // 🚀 FIXED: Auto-Submit Logic uses latest state securely 🚀
   useEffect(() => {
     let timer;
     if (screenState === 'exam' && endTime) {
@@ -239,7 +278,6 @@ export default function LiveTestPage() {
 
         if (remaining <= 0) {
           clearInterval(timer);
-          // If time is up, auto submit using the current closure values
           submitTest();
         }
       }, 1000);
@@ -254,14 +292,15 @@ export default function LiveTestPage() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const startInstructions = (paper) => {
-    if (!paper.questions || paper.questions.length === 0) {
-      alert("This mock test currently has no questions attached.");
-      return;
-    }
+  const viewTestDetails = (paper) => {
     setActivePaper(paper);
-    setQuestions(paper.questions);
-    
+    setQuestions(paper.questions || []);
+    setScreenState('test-landing');
+    navigate(`/mock-test/${createSlug(paper.title)}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToInstructions = () => {
     sessionStorage.removeItem('mockSelectedAnswers');
     sessionStorage.removeItem('mockStatusMap');
     sessionStorage.removeItem('mockCurrentIndex');
@@ -271,9 +310,8 @@ export default function LiveTestPage() {
     setCurrentIndex(0);
     setEndTime(null);
     setLanguage('en'); 
-    
     setScreenState('instructions');
-    navigate(`/mock-test/${createSlug(paper.title)}`, { replace: true });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const beginExam = () => {
@@ -286,12 +324,13 @@ export default function LiveTestPage() {
 
   const handleOptionSelect = (optionIndex) => {
     const qId = questions[currentIndex].id;
-    
-    // Check Section B constraint before selecting
     const currentQ = questions[currentIndex];
-    const subj = currentQ.subject || 'General';
-    let subjQuestions = questions.filter(q => (q.subject || 'General') === subj);
     
+    // Securely identify which subject this question belongs to
+    const subj = getSafeSubject(currentQ, currentIndex, questions.length);
+    let subjQuestions = questions.filter((q, idx) => getSafeSubject(q, idx, questions.length) === subj);
+    
+    // Section B Attempt Restriction
     if (subjQuestions.length > 35) {
         const sectionBQuestions = subjQuestions.slice(35);
         const isInSectionB = sectionBQuestions.some(q => q.id === qId);
@@ -301,7 +340,7 @@ export default function LiveTestPage() {
              sectionBQuestions.forEach(q => { if(selectedAnswers[q.id] !== undefined) attemptedB++; });
              
              if (attemptedB >= 10) {
-                 alert("You can only attempt a maximum of 10 questions in Section B of this subject.");
+                 alert("You can only attempt a maximum of 10 questions in Section B of this subject. Please clear a previous response to attempt this one.");
                  return;
              }
         }
@@ -337,7 +376,7 @@ export default function LiveTestPage() {
       setStatusMap(prev => ({ ...prev, [currentQId]: 'unanswered' }));
     }
     setCurrentIndex(idx);
-    if(window.innerWidth < 1024) setIsPaletteOpen(false); // Auto close palette on mobile after navigating
+    if(window.innerWidth < 1024) setIsPaletteOpen(false); 
   };
 
   const handleNext = () => {
@@ -396,17 +435,16 @@ export default function LiveTestPage() {
       }
     } else {
       navigator.clipboard.writeText(shareText);
-      alert('Result copied to clipboard! You can paste it on WhatsApp, Telegram, or anywhere else.');
+      alert('Result copied to clipboard!');
     }
   };
 
   const renderScreen = () => {
     
-    // --- LIBRARY SCREEN ---
     if (screenState === 'library') {
       return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
             
             <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-8 gap-4 border-b border-gray-200 pb-6">
               <div>
@@ -429,7 +467,6 @@ export default function LiveTestPage() {
               </div>
             </div>
 
-            {/* 🌟 NAYA: Exam Category Filter Tabs 🌟 */}
             {!selectedYear && (
                <div className="flex overflow-x-auto gap-2 mb-8 custom-scrollbar pb-2">
                    {examCategoriesList.map(cat => (
@@ -492,7 +529,7 @@ export default function LiveTestPage() {
                                 <span className="text-gray-500 font-black text-sm bg-gray-100 px-3 py-1 rounded-lg">{paper.year || 'N/A'}</span>
                                 </div>
                                 
-                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="text-xl font-black text-gray-900 mb-4 group-hover:text-indigo-700 transition-colors line-clamp-2">
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); viewTestDetails(paper); }} className="text-xl font-black text-gray-900 mb-4 group-hover:text-indigo-700 transition-colors line-clamp-2">
                                     {paper.title}
                                 </Link>
                                 
@@ -511,8 +548,8 @@ export default function LiveTestPage() {
                                     </a>
                                 </div>
                                 
-                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); startInstructions(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black py-3.5 rounded-xl shadow-md transition-transform active:scale-95 text-sm">
-                                    <PlayCircle size={18}/> Start Live Mock Test
+                                <Link to={testUrl} onClick={(e) => { e.preventDefault(); viewTestDetails(paper); }} className="w-full flex justify-center items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black py-3.5 rounded-xl shadow-md transition-transform active:scale-95 text-sm">
+                                    <PlayCircle size={18}/> View Mock Details
                                 </Link>
                                 </div>
                             </div>
@@ -526,7 +563,68 @@ export default function LiveTestPage() {
       );
     }
 
-    // --- INSTRUCTIONS SCREEN ---
+    if (screenState === 'test-landing') {
+        const totalMarks = evaluableQuestionsCount * 4; 
+        return (
+          <div className="min-h-screen bg-gray-50 py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans animate-in fade-in zoom-in-95 duration-300">
+            <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+              
+              <div className="bg-gradient-to-br from-indigo-800 via-indigo-700 to-blue-800 p-8 md:p-14 text-white text-center relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 150%, #ffffff 0%, transparent 50%), radial-gradient(circle at 80% -50%, #ffffff 0%, transparent 50%)' }}></div>
+                 
+                 <BookOpen size={48} className="mx-auto mb-4 text-indigo-300 drop-shadow-md" />
+                 <h1 className="text-3xl md:text-5xl font-black mb-6 relative z-10 leading-tight">{activePaper?.title}</h1>
+                 
+                 <div className="flex flex-wrap justify-center gap-3 relative z-10">
+                    <span className="bg-white/20 px-5 py-2 rounded-full font-bold text-sm backdrop-blur-sm border border-white/30 flex items-center gap-1.5"><GraduationCap size={16}/> {activePaper?.examName}</span>
+                    <span className="bg-white/20 px-5 py-2 rounded-full font-bold text-sm backdrop-blur-sm border border-white/30 flex items-center gap-1.5"><Clock size={16}/> {activePaper?.year} Series</span>
+                 </div>
+              </div>
+              
+              <div className="p-6 md:p-12">
+                <div className="text-center mb-10">
+                    <p className="text-gray-600 text-lg leading-relaxed max-w-2xl mx-auto">
+                        This is the official previous year question paper for <strong>{activePaper?.examName} {activePaper?.year}</strong>. Practice this exam in a real-time Computer Based Test (CBT) environment to accurately assess your preparation.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                   <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 text-center hover:shadow-md transition-shadow">
+                      <FileText className="mx-auto text-blue-500 mb-2" size={28}/>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Evaluate Qs</p>
+                      <p className="text-2xl font-black text-gray-900">{evaluableQuestionsCount}</p>
+                   </div>
+                   <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-100 text-center hover:shadow-md transition-shadow">
+                      <Clock className="mx-auto text-amber-500 mb-2" size={28}/>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Duration</p>
+                      <p className="text-2xl font-black text-gray-900">{activePaper?.durationMins} Mins</p>
+                   </div>
+                   <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 text-center hover:shadow-md transition-shadow">
+                      <Award className="mx-auto text-emerald-500 mb-2" size={28}/>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Max Marks</p>
+                      <p className="text-2xl font-black text-gray-900">{totalMarks}</p>
+                   </div>
+                   <div className="bg-red-50/50 p-5 rounded-2xl border border-red-100 text-center hover:shadow-md transition-shadow">
+                      <Target className="mx-auto text-red-500 mb-2" size={28}/>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Negative</p>
+                      <p className="text-2xl font-black text-gray-900">-1 Mark</p>
+                   </div>
+                </div>
+  
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                   <button onClick={resetEngine} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 text-lg order-2 sm:order-1">
+                      <ArrowLeft size={20}/> Back to Library
+                   </button>
+                   <button onClick={goToInstructions} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 px-8 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 text-lg order-1 sm:order-2">
+                      <PlayCircle size={24}/> Read Instructions & Start
+                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
     if (screenState === 'instructions') {
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
@@ -545,7 +643,7 @@ export default function LiveTestPage() {
                 <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">1</div>
                 <div>
                   <h4 className="font-bold text-gray-800 text-lg mb-1">Test Pattern</h4>
-                  <p className="text-gray-600 text-sm font-medium">This test contains {questions.length} questions. Maximum {Math.min(activePaper?.totalQuestions || 180, questions.length)} questions will be evaluated. Total duration is {formatTime((activePaper?.durationMins || 180) * 60)}. Timer cannot be paused.</p>
+                  <p className="text-gray-600 text-sm font-medium">This test contains {questions.length} questions. Maximum {evaluableQuestionsCount} questions will be evaluated. Total duration is {formatTime((activePaper?.durationMins || 180) * 60)}. Timer cannot be paused.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -562,7 +660,7 @@ export default function LiveTestPage() {
             </div>
 
             <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-4">
-              <button onClick={() => resetEngine()} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancel</button>
+              <button onClick={() => setScreenState('test-landing')} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Go Back</button>
               <button onClick={beginExam} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-2 text-lg">
                 <PlayCircle size={20}/> I am Ready to Begin
               </button>
@@ -572,15 +670,14 @@ export default function LiveTestPage() {
       );
     }
 
-    // --- LIVE EXAM SCREEN ---
     if (screenState === 'exam') {
       const currentQ = questions[currentIndex];
       
-      const subjects = Array.from(new Set(questions.map(q => q.subject || 'General')));
-      const activeSubject = currentQ?.subject || 'General';
+      const subjects = Array.from(new Set(questions.map((q, idx) => getSafeSubject(q, idx, questions.length))));
+      const activeSubject = getSafeSubject(currentQ, currentIndex, questions.length);
 
       const handleSubjectTabClick = (subj) => {
-        const firstQuestionIndex = questions.findIndex(q => (q.subject || 'General') === subj);
+        const firstQuestionIndex = questions.findIndex((q, idx) => getSafeSubject(q, idx, questions.length) === subj);
         if (firstQuestionIndex !== -1) {
           handleNavigate(firstQuestionIndex);
         }
@@ -593,7 +690,7 @@ export default function LiveTestPage() {
             <div className="absolute inset-0 z-[999] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-200">
                 <Loader2 className="w-16 h-16 animate-spin text-indigo-600 mb-6 drop-shadow-md" />
                 <h2 className="text-3xl font-black text-gray-900 mb-2 text-center">Analyzing Responses</h2>
-                <p className="text-gray-500 font-bold tracking-widest uppercase text-center text-sm px-4">Applying NTA Marking Scheme & Generating Result...</p>
+                <p className="text-gray-500 font-bold tracking-widest uppercase text-center text-sm px-4">Applying Evaluator & Generating Result...</p>
             </div>
           )}
 
@@ -718,14 +815,12 @@ export default function LiveTestPage() {
               </div>
             </div>
 
-            {/* Mobile Palette Overlay */}
             {isPaletteOpen && (
               <div className="fixed inset-0 bg-gray-900/50 z-40 lg:hidden" onClick={() => setIsPaletteOpen(false)}></div>
             )}
 
             <div className={`fixed inset-y-0 right-0 lg:absolute lg:inset-y-auto lg:top-0 lg:bottom-0 w-[85vw] sm:w-[320px] xl:w-[380px] bg-white border-l border-gray-200 flex flex-col z-50 lg:z-20 transition-transform duration-300 shadow-2xl lg:shadow-none ${isPaletteOpen ? 'translate-x-0' : 'translate-x-full'}`}>
               
-              {/* Mobile Close Button */}
               <div className="flex justify-between items-center p-3 border-b border-gray-100 lg:hidden bg-indigo-600 text-white">
                  <h3 className="font-black text-sm">Question Palette</h3>
                  <button onClick={() => setIsPaletteOpen(false)} className="p-1 bg-white/20 rounded-md"><XCircle size={18}/></button>
@@ -752,7 +847,8 @@ export default function LiveTestPage() {
               <div className="flex-1 overflow-y-auto custom-scrollbar p-3 bg-gray-50/50">
                 <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2">
                   {questions.map((q, idx) => {
-                    if ((q.subject || 'General') !== activeSubject) return null; 
+                    const subj = getSafeSubject(q, idx, questions.length);
+                    if (subj !== activeSubject) return null; 
                     
                     const status = statusMap[q.id];
                     const isCurrent = currentIndex === idx;
@@ -791,10 +887,8 @@ export default function LiveTestPage() {
       );
     }
 
-    // --- RESULT SCREEN ---
     if (screenState === 'result') {
       const totalAttempted = scoreData.correct + scoreData.incorrect;
-      // NEET Accuracy calculation based on attempted questions
       const accuracy = totalAttempted > 0 ? Math.round((scoreData.correct / totalAttempted) * 100) : 0;
       
       let remark = "Keep Practicing! 📚";
@@ -880,7 +974,7 @@ export default function LiveTestPage() {
                             <SafeMath text={getLocalizedText(q.text)} />
                           </div>
                         </div>
-                        <span className="hidden sm:block shrink-0 text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{q.subject || 'General'}</span>
+                        <span className="hidden sm:block shrink-0 text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{getSafeSubject(q, idx, questions.length)}</span>
                       </div>
                       
                       {q.imageUrl && <img src={q.imageUrl} alt="Explanation figure" loading="lazy" className="max-w-full max-h-40 md:max-h-48 mb-6 border border-gray-200 rounded-xl p-1 md:p-2 bg-gray-50 mx-auto sm:mx-0" />}
