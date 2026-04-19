@@ -751,13 +751,15 @@ export default function LiveTestPage() {
                   <SafeMath text={getLocalizedText(currentQ?.text)} />
                 </div>
                 
-                {currentQ?.imageUrl && (
-                  <img src={currentQ.imageUrl} alt="Question figure" loading="lazy" className="max-w-full max-h-48 md:max-h-64 mb-6 rounded-lg border border-gray-200 shadow-sm p-1" />
+                {/* 🚀 FIXED: Exam Screen Image Logic */}
+                {currentQ?.imageUrl && getLocalizedText(currentQ.imageUrl) && (
+                  <img src={getLocalizedText(currentQ.imageUrl)} alt="Question figure" loading="lazy" className="max-w-full max-h-48 md:max-h-64 mb-6 rounded-lg border border-gray-200 shadow-sm p-1" />
                 )}
 
+                {/* 🚀 FIXED: Exam Screen Multiple Images Logic */}
                 {currentQ?.imageUrls && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                    {currentQ.imageUrls.map((url, i) => (
+                    {getLocalizedOptions(currentQ.imageUrls).map((url, i) => (
                       <div key={i} className="flex flex-col items-center">
                         <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-xs border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
                         <img src={url} loading="lazy" alt={`Graph ${String.fromCharCode(65 + i)}`} className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-white p-2" />
@@ -977,11 +979,15 @@ export default function LiveTestPage() {
                         <span className="hidden sm:block shrink-0 text-[10px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{getSafeSubject(q, idx, questions.length)}</span>
                       </div>
                       
-                      {q.imageUrl && <img src={q.imageUrl} alt="Explanation figure" loading="lazy" className="max-w-full max-h-40 md:max-h-48 mb-6 border border-gray-200 rounded-xl p-1 md:p-2 bg-gray-50 mx-auto sm:mx-0" />}
+                      {/* 🚀 FIXED: Result Screen Image Logic */}
+                      {q.imageUrl && getLocalizedText(q.imageUrl) && (
+                        <img src={getLocalizedText(q.imageUrl)} alt="Explanation figure" loading="lazy" className="max-w-full max-h-40 md:max-h-48 mb-6 border border-gray-200 rounded-xl p-1 md:p-2 bg-gray-50 mx-auto sm:mx-0" />
+                      )}
 
+                      {/* 🚀 FIXED: Result Screen Multiple Images Logic */}
                       {q.imageUrls && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                          {q.imageUrls.map((url, i) => (
+                          {getLocalizedOptions(q.imageUrls).map((url, i) => (
                             <div key={i} className="flex flex-col items-center">
                               <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-xs border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
                               <img src={url} alt={`Graph ${String.fromCharCode(65 + i)}`} loading="lazy" className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-gray-50 p-2" />
