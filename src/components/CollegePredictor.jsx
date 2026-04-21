@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Helmet } from 'react-helmet-async'; // 🌟 SEO Engine
 import { Search, Loader2, Sparkles, Trophy, MapPin, Target, CheckCircle, AlertCircle, Calculator, BookOpen, Activity, RefreshCw, AlertTriangle } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase'; 
+// 🚀 FIXED: Importing the new advanced SEO component
+import SEO from './SEO'; 
 
 // 🌟 ULTRA-PRECISE MARKS TO RANK DATA
 const marksToRankData = [
@@ -97,7 +98,6 @@ export default function CollegePredictor({ autoFillMobile = '', autoFillName = '
 
       setIsFetchingColleges(true);
       try {
-        // 🌟 REPLACED LOCALHOST WITH LIVE RENDER DOMAIN 🌟
         const response = await fetch("https://edufill-server.onrender.com/api/colleges/dropdown", { 
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -124,7 +124,6 @@ export default function CollegePredictor({ autoFillMobile = '', autoFillName = '
       }
     };
 
-    // Faster fetching time (300ms)
     const timer = setTimeout(() => { 
       fetchDynamicColleges(); 
     }, 300); 
@@ -162,7 +161,6 @@ export default function CollegePredictor({ autoFillMobile = '', autoFillName = '
     setIsPredicting(true);
 
     try {
-      // 🌟 REPLACED LOCALHOST WITH LIVE RENDER DOMAIN 🌟
       const response = await fetch("https://edufill-server.onrender.com/api/colleges/predict", { 
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -215,17 +213,26 @@ export default function CollegePredictor({ autoFillMobile = '', autoFillName = '
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       
-      <Helmet>
-        <title>NEET & 12th Board College Predictor 2026 | Free AI Tool | EduFill</title>
-        <meta name="description" content="Predict your dream medical or graduation college instantly. Check state quota, all India rank, and exact cutoffs for MBBS, B.Sc, B.Com, and more based on NEET/12th score." />
-        <meta name="keywords" content="NEET college predictor, 12th board college predictor, MBBS predictor, B.Sc admission predictor, cutoff rank predictor 2026, AI college predictor, EduFill" />
-        
-        <meta property="og:title" content="Find Your Dream College | Free AI Predictor by EduFill" />
-        <meta property="og:description" content="Enter your expected score/rank to see exactly which colleges you can get into. Accurate 2026 cutoffs data." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://edufills.com/college-predictor" />
-        <link rel="canonical" href="https://edufills.com/college-predictor" />
-      </Helmet>
+      {/* 🚀 FIXED: Replaced standard Helmet with our custom dynamic SEO component */}
+      <SEO 
+        title="Free NEET & 12th Board College Predictor 2026 | EduFill"
+        description="Enter your expected score/rank to instantly predict your dream medical or graduation college. Accurate state quota and all India rank cutoffs for MBBS, B.Sc, B.Com."
+        keywords="NEET college predictor, 12th board college predictor, MBBS predictor, B.Sc admission predictor, cutoff rank predictor 2026, AI college predictor, EduFill"
+        url="/college-predictor"
+        schemaMarkup={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "EduFill Dual-AI College Predictor",
+          "applicationCategory": "EducationalApplication",
+          "operatingSystem": "Web",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR"
+          },
+          "description": "Predict admission chances for MBBS, B.Sc, and other degree courses based on NEET or 12th board results."
+        }}
+      />
 
       <div className="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
         

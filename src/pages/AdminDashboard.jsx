@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Trash2, Search, Database, FileText, Loader2, AlertCircle, RefreshCw, Filter, AlertTriangle, Sparkles, Plus, Edit, Save, X, Lock, LogOut, GraduationCap, Activity, Download } from 'lucide-react';
 
-// 🌟 DYNAMIC API BASE URL 🌟
-// Change to your production URL when deploying (e.g., 'https://edufill-backend-production.up.railway.app')
+// 🚀 FIXED: Added custom SEO component for noindex feature
+import SEO from '../components/SEO';
+
 const API_BASE_URL = "https://edufill-server.onrender.com";
 
 export default function AdminDashboard() {
-  // ==========================================
-  // 🌟 AUTHENTICATION (LOCK SCREEN) STATES
-  // ==========================================
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -22,7 +20,6 @@ export default function AdminDashboard() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // 🌟 SECURE MASTER PASSWORD: Reads from .env file. Defaults to "admin7987" if not found in local testing.
     const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_MASTER_PASSWORD || "admin7987"; 
 
     if (passwordInput === ADMIN_PASSWORD) {
@@ -40,12 +37,7 @@ export default function AdminDashboard() {
     localStorage.removeItem('edufill_admin_auth');
     setPasswordInput('');
   };
-
-  // ==========================================
-  // EXISTING DASHBOARD STATES & LOGIC
-  // ==========================================
   
-  // 🌟 EXAM MODE TAB (NEET vs 12th)
   const [activeExamMode, setActiveExamMode] = useState('NEET'); 
 
   const [file, setFile] = useState(null);
@@ -89,10 +81,8 @@ export default function AdminDashboard() {
     }
   };
 
-  // 🚀 PERFORMANCE FIX: Debounce Search Requests 🚀
   useEffect(() => {
     if (isAuthenticated) {
-      // 500ms delay before fetching to prevent API spam while typing
       const delaySearch = setTimeout(() => { fetchColleges(); }, 500); 
       return () => clearTimeout(delaySearch);
     }
@@ -118,7 +108,6 @@ export default function AdminDashboard() {
       if (response.ok) {
         setUploadMessage(result.message);
         setFile(null);
-        // Refresh cache slightly later to allow background processing to finish
         setTimeout(async () => {
            await clearBackendCache();
            fetchColleges(); 
@@ -147,7 +136,6 @@ export default function AdminDashboard() {
 
         const collegesData = [];
         for (let i = 1; i < lines.length; i++) {
-          // Robust CSV splitting handling quotes
           const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(item => item.replace(/^"|"$/g, '').trim());
           if (row.length >= 3 && row[0] !== '') {
             collegesData.push({
@@ -327,12 +315,13 @@ export default function AdminDashboard() {
     ? ["All", "MBBS", "BDS", "B.Sc. Nursing", "AIIMS"] 
     : ["All", "B.Sc", "B.A", "B.Com", "BCA", "BBA", "B.Tech"];
 
-  // ==========================================
-  // RENDER LOCK SCREEN IF NOT AUTHENTICATED
-  // ==========================================
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans">
+        
+        {/* 🚀 FIXED: Secure NoIndex SEO for Auth Screen */}
+        <SEO title="Admin Login | EduFill Secure Access" url="/admin-secret-panel" noindex={true} />
+        
         <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300">
           <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
             <Lock size={40} />
@@ -365,11 +354,12 @@ export default function AdminDashboard() {
     );
   }
 
-  // ==========================================
-  // RENDER MAIN DASHBOARD
-  // ==========================================
   return (
     <div className="min-h-screen bg-gray-50 p-6 md:p-10 font-sans relative">
+      
+      {/* 🚀 FIXED: Secure NoIndex SEO for Dashboard */}
+      <SEO title="EduFill Admin Control Room" url="/admin-secret-panel" noindex={true} />
+
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* HEADER */}

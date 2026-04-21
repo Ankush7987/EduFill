@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { CheckCircle, X, MessageCircle, ArrowRight, ShieldCheck, Clock, ArrowLeft, Loader2, CheckCircle2, Calendar, FileText, AlertTriangle } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import DocumentUploader from '../components/DocumentUploader';
+// 🚀 FIXED: Added SEO component
+import SEO from '../components/SEO';
 
 const MASTER_TIME_SLOTS = [
   "12:00 AM", "12:30 AM", "01:00 AM", "01:30 AM", "02:00 AM", "02:30 AM", "03:00 AM", "03:30 AM",
@@ -22,6 +23,46 @@ const defaultData = {
   'govt-college': { title: "12th Govt College Admission", startDate: "To be announced", lastDate: "To be announced", desc: "e-Pravesh Admissions.", examValue: "12th Admission", requirements: ['10th/12th Marksheet'], edufillPromise: 'No Queues' },
   'default': { title: "Exam Form Filling Portal", startDate: "N/A", lastDate: "N/A", desc: "...", examValue: "", requirements: [], edufillPromise: "" }
 };
+
+// ==========================================
+// SUB-COMPONENTS for cleaner code
+// ==========================================
+
+const Header = ({ isFormLive, navigate }) => (
+  <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10 flex justify-between items-center shadow-sm">
+    <div className="flex items-center gap-4">
+      <button onClick={() => navigate(-1)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-600"><ArrowLeft size={20} /></button>
+      <div className="flex items-center gap-3">
+        <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center shadow-md"><span className="font-black text-white text-xs">EF</span></div>
+        <h1 className="text-xl font-black text-blue-950 hidden md:block">Secure Application Portal</h1>
+      </div>
+    </div>
+    
+    {isFormLive ? (
+      <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full shadow-sm"><span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span><span className="text-xs font-black text-red-600 uppercase tracking-widest">Forms Live</span></div>
+    ) : (
+      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-full">Forms Closed</span>
+    )}
+  </header>
+);
+
+const ExamInfoPanel = ({ examData }) => (
+  <div className="w-full lg:w-5/12 space-y-6">
+    <div><h1 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">{examData.title}</h1><p className="text-gray-600 font-medium leading-relaxed mb-6">{examData.desc}</p></div>
+
+    <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><Calendar size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Start Date</p><p className="font-black text-gray-800 text-sm">{examData.startDate}</p></div></div>
+      <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3"><div className="bg-red-100 p-2 rounded-xl text-red-600"><Clock size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Date</p><p className="font-black text-red-600 text-sm">{examData.lastDate}</p></div></div>
+    </div>
+
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4 flex items-center gap-2 border-b pb-3"><FileText className="text-blue-500"/> Required Documents</h3><ul className="space-y-3">{examData.requirements?.map((req, idx) => (<li key={idx} className="flex items-start gap-3 text-sm text-gray-700 font-medium"><CheckCircle2 size={18} className="shrink-0 mt-0.5 text-blue-500" /><span>{req}</span></li>))}</ul></div>
+    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-3xl border border-indigo-100 shadow-sm"><h3 className="text-sm font-black uppercase tracking-widest mb-3 text-indigo-800 flex items-center gap-2"><ShieldCheck size={20}/> Why Book With EduFills?</h3><p className="text-sm text-indigo-900/80 leading-relaxed font-medium">{examData.edufillPromise}</p></div>
+  </div>
+);
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function ExamFormPage() {
   const { examId } = useParams(); 
@@ -98,7 +139,6 @@ export default function ExamFormPage() {
       let activeAgents = 0;
       agentSnap.forEach(doc => {
         const data = doc.data();
-        // 🌟 NAYA: Check if agent is on leave today
         const isOnLeave = data.leaves && data.leaves.includes(todayStr);
         if (data.onBreak !== true && !isOnLeave) activeAgents++;
       });
@@ -174,7 +214,6 @@ export default function ExamFormPage() {
       let freeAgents = [];
       agentSnap.forEach((doc) => {
         const agentData = doc.data();
-        // 🌟 NAYA: Exclude agent if on leave today
         const isOnLeave = agentData.leaves && agentData.leaves.includes(todayStr);
 
         if (agentData.onBreak !== true && !isOnLeave && !busyAgentNames.includes(agentData.name)) {
@@ -270,42 +309,31 @@ export default function ExamFormPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      <Helmet>
-        <title>{examData.title} Online Form Fill Up | EduFills</title>
-        <meta name="description" content={examData.desc} />
-        <link rel="canonical" href={`https://edufills.com/apply/${examId}`} />
-      </Helmet>
+      
+      {/* 🚀 FIXED: GSC Canonical Tag and Rich SEO dynamically generated 🚀 */}
+      <SEO 
+        title={`Fill ${examData.title} Application Form Online Error-Free | EduFill`}
+        description={`Skip the cyber cafe queue! Let EduFill experts fill your ${examData.title} admission forms with 100% accuracy and zero rejection guarantee. Starts at ${examData.startDate}.`}
+        keywords={`${examData.title} online form filling, ${examData.examValue} application form, registration, online cyber cafe, error free admission form`}
+        url={`/apply/${examId}`} 
+        schemaMarkup={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": `${examData.title} Online Form Filling`,
+          "provider": {
+            "@type": "Organization",
+            "name": "EduFill"
+          },
+          "description": examData.desc,
+          "areaServed": "India"
+        }}
+      />
 
-      <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-600"><ArrowLeft size={20} /></button>
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center shadow-md"><span className="font-black text-white text-xs">EF</span></div>
-            <h1 className="text-xl font-black text-blue-950 hidden md:block">Secure Application Portal</h1>
-          </div>
-        </div>
-        
-        {isFormLive ? (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full shadow-sm"><span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span><span className="text-xs font-black text-red-600 uppercase tracking-widest">Forms Live</span></div>
-        ) : (
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-full">Forms Closed</span>
-        )}
-      </header>
+      <Header isFormLive={isFormLive} navigate={navigate} />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12 flex flex-col lg:flex-row gap-8">
         
-        {/* ⬅️ LEFT COLUMN: EXAM INFORMATION */}
-        <div className="w-full lg:w-5/12 space-y-6">
-          <div><h1 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">{examData.title}</h1><p className="text-gray-600 font-medium leading-relaxed mb-6">{examData.desc}</p></div>
-
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><Calendar size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Start Date</p><p className="font-black text-gray-800 text-sm">{examData.startDate}</p></div></div>
-            <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3"><div className="bg-red-100 p-2 rounded-xl text-red-600"><Clock size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Date</p><p className="font-black text-red-600 text-sm">{examData.lastDate}</p></div></div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100"><h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4 flex items-center gap-2 border-b pb-3"><FileText className="text-blue-500"/> Required Documents</h3><ul className="space-y-3">{examData.requirements?.map((req, idx) => (<li key={idx} className="flex items-start gap-3 text-sm text-gray-700 font-medium"><CheckCircle2 size={18} className="shrink-0 mt-0.5 text-blue-500" /><span>{req}</span></li>))}</ul></div>
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-3xl border border-indigo-100 shadow-sm"><h3 className="text-sm font-black uppercase tracking-widest mb-3 text-indigo-800 flex items-center gap-2"><ShieldCheck size={20}/> Why Book With EduFills?</h3><p className="text-sm text-indigo-900/80 leading-relaxed font-medium">{examData.edufillPromise}</p></div>
-        </div>
+        <ExamInfoPanel examData={examData} />
 
         {/* ➡️ RIGHT COLUMN: THE BOOKING FORM */}
         <div className="w-full lg:w-7/12">

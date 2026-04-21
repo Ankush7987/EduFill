@@ -26,6 +26,9 @@ import RegisteredUsersTab from './admin/tabs/RegisteredUsersTab';
 import AgentTrackerTab from './admin/tabs/AgentTrackerTab'; 
 import MockTestManagerTab from './admin/tabs/MockTestManagerTab'; 
 
+// 🚀 FIXED: Added SEO component for NoIndex security
+import SEO from '../components/SEO';
+
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true); 
@@ -34,12 +37,10 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false); 
   
-  // 🚀 FIX: Load active tab from localStorage so it remembers the last opened page on refresh 🚀
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('edufill_admin_active_tab') || 'dashboard';
   });
 
-  // 🚀 FIX: Save to localStorage whenever activeTab changes
   useEffect(() => {
     localStorage.setItem('edufill_admin_active_tab', activeTab);
   }, [activeTab]);
@@ -195,7 +196,6 @@ export default function AdminPanel() {
     return () => { unsubSettings(); unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubMissing(); unsubEmp(); unsubUsers(); unsubPredictor(); };
   }, [isAuthenticated]);
 
-  // 🚀 FIXED: PURE FIREBASE AUTHENTICATION 🚀
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -217,7 +217,7 @@ export default function AdminPanel() {
       await signOut(auth);
       setIsAuthenticated(false);
       localStorage.removeItem('edufill_admin_auth');
-      localStorage.removeItem('edufill_admin_active_tab'); // Logout hone par reset kar do
+      localStorage.removeItem('edufill_admin_active_tab');
     } catch (error) {
       console.error("Error logging out", error);
     }
@@ -340,7 +340,6 @@ export default function AdminPanel() {
     } catch (err) { console.error(err); } finally { setReplacingDoc(null); }
   };
 
-  // 🚀 PERFORMANCE UPGRADE: useMemo applied to prevent heavy re-calculations 🚀
   const allAgentsList = useMemo(() => {
     return [...new Set([...employees.map(e => e.name), ...bookings.map(b => b.assignedTo).filter(a => a && a !== 'Unassigned')])].sort();
   }, [employees, bookings]);
@@ -506,10 +505,13 @@ export default function AdminPanel() {
     );
   }
 
-  // 🌟 REDESIGNED LOGIN SCREEN 🌟
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
+        
+        {/* 🚀 FIXED: Secure NoIndex SEO for Admin Login Screen */}
+        <SEO title="Admin Vault | EduFill Secure Access" url="/admin" noindex={true} />
+
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none"></div>
         <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none"></div>
         
@@ -569,6 +571,9 @@ export default function AdminPanel() {
   return (
     <div className="h-screen bg-[#F1F5F9] flex flex-col md:flex-row overflow-hidden font-sans">
       
+      {/* 🚀 FIXED: Secure NoIndex SEO for Active Dashboard */}
+      <SEO title="Admin Vault Dashboard | EduFill Secure Access" url="/admin" noindex={true} />
+
       {/* MOBILE HEADER */}
       <div className="md:hidden bg-gray-900 text-white p-4 flex justify-between items-center shadow-lg z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -729,7 +734,6 @@ export default function AdminPanel() {
           </div>
         </div>
         
-        {/* 🌟 SCROLLBAR FIXED HERE: Custom CSS classes added to hide scrollbar while keeping scroll active 🌟 */}
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           
           <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-2">Operations</div>
@@ -791,7 +795,6 @@ export default function AdminPanel() {
 
       {/* 🌟 MAIN CONTENT AREA (Premium Light Canvas) 🌟 */}
       <main className="flex-1 overflow-y-auto relative bg-[#F8FAFC]">
-        {/* Subtle Background Pattern */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNFMkU4RjAiLz48L3N2Zz4=')] opacity-50 z-0 pointer-events-none"></div>
         
         <div className="relative z-10 p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto">

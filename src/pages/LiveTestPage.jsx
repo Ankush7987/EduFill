@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Helmet } from 'react-helmet-async'; 
 import { Clock, ChevronRight, ChevronLeft, CheckCircle, XCircle, AlertCircle, Award, BarChart3, Target, PlayCircle, Trophy, Download, FileText, Loader2, Key, Eye, BookOpen, PanelRightClose, PanelRightOpen, Share2, Languages, FolderOpen, ArrowLeft, GraduationCap } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom'; 
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
@@ -11,6 +10,9 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+
+// 🚀 FIXED: Importing custom SEO component
+import SEO from '../components/SEO';
 
 const SafeMath = ({ text }) => {
   if (!text) return null;
@@ -1018,19 +1020,21 @@ export default function LiveTestPage() {
     return null;
   };
 
-  // 🚀 FIXED: GSC Canonical Tag dynamically generated
+  // 🚀 FIXED: Dynamic Canonical URL Generation
   const canonicalUrl = activePaper 
-    ? `https://edufills.com/mock-test/${createSlug(activePaper.title)}` 
-    : 'https://edufills.com/mock-test';
+    ? `/mock-test/${createSlug(activePaper.title)}` 
+    : '/mock-test';
 
   return (
     <>
-      <Helmet>
-        <title>{activePaper ? `${activePaper.title} | Live Mock Test` : 'Live Test Engine | Professional Mock CBT'}</title>
-        <meta name="description" content={activePaper ? `Practice the ${activePaper.examName} ${activePaper.year} previous year question paper online. Free mock test with detailed solutions.` : "Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction."} />
-        <meta name="keywords" content={activePaper ? `${activePaper.examName} ${activePaper.year} PYQ, ${activePaper.title} online test, free mock test` : "Live Mock Test, PYQ, NEET, JEE"} />
-        <link rel="canonical" href={canonicalUrl} />
-      </Helmet>
+      {/* 🚀 FIXED: Replaced standard Helmet with our new super-charged SEO component */}
+      <SEO 
+        title={activePaper ? `${activePaper.title} | Live Mock Test` : 'Live Test Engine | Professional Mock CBT | EduFill'}
+        description={activePaper ? `Practice the official ${activePaper.examName} ${activePaper.year} previous year question paper online with the NTA marking scheme.` : "Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction."}
+        keywords={activePaper ? `${activePaper.examName} ${activePaper.year} PYQ, ${activePaper.title} online test, free mock test` : "Live Mock Test, PYQ, NEET, JEE"}
+        url={canonicalUrl}
+        type="article"
+      />
       {renderScreen()}
     </>
   );

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async'; 
 import { useNavigate, Link } from 'react-router-dom'; 
 import { HelpCircle, ShieldCheck, Clock, Smartphone, Zap, ArrowRight, Building, FileWarning, X, CheckCircle2, MessageCircle, Star, Award, MapPin, Search, Sparkles, Calendar, UploadCloud, FileText, Stethoscope, Calculator, BookOpen, GraduationCap } from 'lucide-react';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
@@ -12,6 +11,9 @@ import AuthVaultWeb from '../components/AuthVaultWeb.jsx';
 import CollegePredictorBanner from '../components/CollegePredictorBanner.jsx'; 
 import MockTestBanner from '../components/MockTestBanner.jsx';
 import Footer from '../components/Footer.jsx';
+
+// 🚀 FIXED: Importing our custom SEO component
+import SEO from '../components/SEO';
 
 const examLayoutConfig = [
   {
@@ -55,7 +57,6 @@ export default function HomePage() {
   const [dbExamContent, setDbExamContent] = useState(defaultContentFallback); 
 
   useEffect(() => {
-    // Top pr scroll karega humesha
     window.scrollTo(0, 0);
 
     const controlsRef = doc(db, "PlatformSettings", "examControls");
@@ -95,7 +96,6 @@ export default function HomePage() {
     }
   };
 
-  // Memoize to prevent unnecessary re-renders when other states change
   const finalExamsData = useMemo(() => {
     return examLayoutConfig.map(config => {
       const dynamicContent = dbExamContent[config.id] || defaultContentFallback[config.id];
@@ -106,11 +106,24 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative selection:bg-emerald-200">
       
-      {/* 🌟 SEO TAB TITLE 🌟 */}
-      <Helmet>
-        <title>EduFill | India's #1 Form Filling Portal</title>
-        <meta name="description" content="Skip the cyber cafe queue! Get your NEET, JEE, CUET forms filled 100% error-free by EduFill experts." />
-      </Helmet>
+      {/* 🌟 SEO ENHANCEMENT 🌟 */}
+      <SEO 
+        title="EduFill | India's #1 Online Form Filling & College Predictor"
+        description="Skip the cyber cafe queue! Fill your NEET, JEE, CUET, and College admission forms online with 100% accuracy. Use our Free Dream College Predictor & Secure Live Mock Tests."
+        keywords="EduFill, online form filling, NEET application, JEE form, CUET registration, college predictor, live mock test"
+        url="/"
+        schemaMarkup={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "EduFill",
+          "url": "https://edufills.com",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://edufills.com/college-predictor?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }}
+      />
 
       {/* FULL SCREEN OVERLAYS */}
       {isAuthOpen && (
@@ -356,7 +369,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 🌟 B2B INSTITUTE CAMP CARD (Linked to /campus-drive) 🌟 */}
+        {/* 🌟 B2B INSTITUTE CAMP CARD 🌟 */}
         <Link to="/campus-drive" className="w-full bg-white border border-gray-200 rounded-[2rem] p-6 md:p-10 shadow-sm mb-8 flex flex-col lg:flex-row items-center justify-between gap-6 hover:shadow-lg transition-shadow group max-w-6xl mx-auto block">
           <div className="flex-1 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 font-bold text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full mb-3 border border-emerald-100">

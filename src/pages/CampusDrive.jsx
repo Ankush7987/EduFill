@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { Building, Users, CheckCircle, ShieldCheck, Clock, FileText, Send, MapPin, Phone, Mail, ArrowLeft, Calendar, Loader2 } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from '../firebase';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
 
+// 🚀 FIXED: Importing our custom SEO component
+import SEO from '../components/SEO';
+
 export default function CampusDrive() {
-  // 🌟 NAYA: SCROLL TO TOP FIX 🌟
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -45,19 +46,13 @@ export default function CampusDrive() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans selection:bg-emerald-200">
       
-      {/* 🌟 KILLER SEO KEYWORDS & META TAGS 🌟 */}
-      <Helmet>
-        <title>Host EduFill Campus Drive | B2B Institute Tie-ups for Exam Forms</title>
-        <meta name="description" content="Partner with EduFill to host a campus drive at your school or coaching institute. We provide bulk online form-filling services for NEET, JEE, and CUET with 100% accuracy right at your campus." />
-        <meta name="keywords" content="campus drive form filling, institute tie up NEET JEE, bulk form filling schools, EduFill campus drive, competitive exam form filling camp, school registration partner, Bhopal Indore form filling, NEET camp setup, B2B education partnership" />
-        
-        {/* Open Graph Tags for Professional Social Sharing */}
-        <meta property="og:title" content="Host an EduFill Campus Drive at Your Institute" />
-        <meta property="og:description" content="Empower your students with on-campus, zero-error form filling for NEET & JEE. Partner with Central India's leading platform." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://edufills.com/campus-drive" />
-        <link rel="canonical" href="https://edufills.com/campus-drive" />
-      </Helmet>
+      {/* 🌟 SEO ENHANCEMENT 🌟 */}
+      <SEO 
+        title="Campus Drive & B2B Partnerships | EduFill"
+        description="Partner with EduFill for offline campus form-filling drives and mock test evaluations. Trusted by top institutes in Central India."
+        keywords="EduFill campus drive, B2B partnership, institute tie-up, bulk form filling, school registration partner, Bhopal Indore form filling"
+        url="/campus-drive"
+      />
 
       {/* HEADER */}
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-100 sticky top-0 z-40 transition-all">
@@ -143,7 +138,6 @@ export default function CampusDrive() {
                       <input type="text" name="address" required value={formData.address} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl px-4 py-3.5 focus:border-emerald-500 focus:bg-gray-50 outline-none transition-all font-medium text-gray-800" placeholder="City & Landmark" />
                     </div>
                     
-                    {/* 🌟 FIX: BUTTON SIZE CORRECTED 🌟 */}
                     <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-black py-4 min-h-[56px] rounded-xl shadow-lg transition-transform active:scale-95 mt-4 flex justify-center items-center gap-2 text-lg">
                       {loading ? <><Loader2 className="animate-spin" size={20}/> Processing...</> : <><Send size={20}/> Submit Request</>}
                     </button>

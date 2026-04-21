@@ -8,6 +8,9 @@ import DocumentUploader from '../components/DocumentUploader';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
+// 🚀 FIXED: Imported SEO component for NoIndex security
+import SEO from '../components/SEO';
+
 // ==========================================
 // 🌟 CONSTANTS & UTILITIES
 // ==========================================
@@ -33,6 +36,10 @@ const getDownloadUrl = (url) => {
 
 const AgentLogin = ({ agentName, setAgentName, pin, setPin, handleLogin, loggingIn, error }) => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    
+    {/* 🚀 FIXED: Secure NoIndex SEO for Login Screen */}
+    <SEO title="Agent Login | EduFill Secure Access" url="/agent" noindex={true} />
+
     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden">
       <div className="bg-indigo-600 p-8 text-center text-white">
         <div className="relative w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg border-b-4 border-emerald-700 mx-auto mb-5">
@@ -408,6 +415,9 @@ export default function AgentPanel() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       
+      {/* 🚀 FIXED: Secure NoIndex SEO for Agent Dashboard */}
+      <SEO title="Agent Dashboard | EduFill Secure Access" url="/agent" noindex={true} />
+
       {/* --- MODALS --- */}
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} paymentData={paymentData} setPaymentData={setPaymentData} submitPayment={submitPayment} savingPayment={savingPayment} />
       <WalkInModal isOpen={isWalkInModalOpen} onClose={() => setIsWalkInModalOpen(false)} walkInForm={walkInForm} handleWalkInChange={handleWalkInChange} submitWalkIn={submitWalkIn} savingWalkIn={savingWalkIn} approvedInstitutes={approvedInstitutes} availableSlots={availableSlots} bookedSlotsInfo={bookedSlotsInfo} instituteCapacity={instituteCapacity} isHolidayToday={bookingSettings.holidays?.includes(todayStr)} todayStr={todayStr} />
