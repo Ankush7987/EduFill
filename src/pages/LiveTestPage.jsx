@@ -5,7 +5,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
 import { db } from '../firebase'; 
 
-// 🚀 NAYA: Markdown & Math Imports
+// 🚀 Markdown & Math Imports
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -744,7 +744,7 @@ export default function LiveTestPage() {
                     {getLocalizedOptions(currentQ.imageUrls).map((url, i) => (
                       <div key={i} className="flex flex-col items-center">
                         <span className="bg-gray-100 text-gray-700 font-bold px-3 py-1 rounded-t-lg text-xs border border-gray-200 border-b-0 w-full text-center">Graph {String.fromCharCode(65 + i)}</span>
-                        <img src={url} loading="lazy" alt={`Graph ${String.fromCharCode(65 + i)}`} className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-white p-2" />
+                        <img src={url} alt={`Graph ${String.fromCharCode(65 + i)}`} loading="lazy" className="w-full max-h-40 md:max-h-48 object-contain border border-gray-200 rounded-b-lg bg-white p-2" />
                       </div>
                     ))}
                   </div>
@@ -1018,12 +1018,18 @@ export default function LiveTestPage() {
     return null;
   };
 
+  // 🚀 FIXED: GSC Canonical Tag dynamically generated
+  const canonicalUrl = activePaper 
+    ? `https://edufills.com/mock-test/${createSlug(activePaper.title)}` 
+    : 'https://edufills.com/mock-test';
+
   return (
     <>
       <Helmet>
         <title>{activePaper ? `${activePaper.title} | Live Mock Test` : 'Live Test Engine | Professional Mock CBT'}</title>
         <meta name="description" content={activePaper ? `Practice the ${activePaper.examName} ${activePaper.year} previous year question paper online. Free mock test with detailed solutions.` : "Central India's leading platform for error-free competitive exam form filling, live mock tests, and AI college prediction."} />
         <meta name="keywords" content={activePaper ? `${activePaper.examName} ${activePaper.year} PYQ, ${activePaper.title} online test, free mock test` : "Live Mock Test, PYQ, NEET, JEE"} />
+        <link rel="canonical" href={canonicalUrl} />
       </Helmet>
       {renderScreen()}
     </>
