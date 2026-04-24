@@ -1,10 +1,98 @@
-import React, { useState, useEffect } from 'react';
-import { Upload, Trash2, Search, Database, FileText, Loader2, AlertCircle, RefreshCw, Filter, AlertTriangle, Sparkles, Plus, Edit, Save, X, Lock, LogOut, GraduationCap, Activity, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, Trash2, Search, Database, FileText, Loader2, AlertCircle, RefreshCw, Filter, AlertTriangle, Sparkles, Plus, Edit, Save, X, Lock, LogOut, GraduationCap, Activity, Download, ChevronDown, MapPin } from 'lucide-react';
 
 // 🚀 FIXED: Added custom SEO component for noindex feature
 import SEO from '../components/SEO';
 
 const API_BASE_URL = "https://edufill-server.onrender.com";
+
+// 🌟 DYNAMIC STATE & DISTRICT DATA
+const stateDistricts = {
+  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", "Kadapa"],
+  "Assam": ["Guwahati", "Dibrugarh", "Silchar", "Jorhat", "Tezpur", "Kamrup "],
+  "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Darbhanga", "Nalanda"],
+  "Chhattisgarh": ["Raipur", "Bhilai", "Bilaspur", "Jagdalpur", "Korba"],
+  "Delhi": ["New Delhi", "North Delhi", "South Delhi", "East Delhi", "West Delhi", "Central Delhi"],
+  "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar"],
+  "Haryana": ["Gurugram", "Faridabad", "Panipat", "Ambala", "Rohtak", "Hisar"],
+  "Himachal Pradesh": ["Shimla", "Mandi", "Dharamshala", "Solan", "Bilaspur"],
+  "Jammu & Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla", "Samba"],
+  "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Hazaribagh", "Deoghar"],
+  "Karnataka": ["Bengaluru", "Mysuru", "Mangaluru", "Hubli", "Belagavi", "Gulbarga", "Kalaburagi"],
+  "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Thrissur", "Kollam"],
+  "Madhya Pradesh": ["Bhopal", "Indore", "Gwalior", "Jabalpur", "Ujjain", "Rewa"],
+  "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Aurangabad", "Thane"],
+  "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur", "khordha"],
+  "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda"],
+  "Rajasthan": ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Ajmer", "Bikaner"],
+  "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem"],
+  "Telangana": ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Yadadri Bhuvanagiri"],
+  "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi", "Agra", "Prayagraj", "Meerut", "Gorakhpur", "Raebareli"],
+  "Uttarakhand": ["Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rishikesh"],
+  "West Bengal": ["Kolkata", "Howrah", "Darjeeling", "Siliguri", "Asansol", "Burdwan", "Nadia"]
+};
+
+// 🌟 PREMIUM UI COMPONENT: Custom Searchable Dropdown
+const SearchableDropdown = ({ label, value, onChange, options, placeholder, required, disabled }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => opt.toLowerCase().includes((value || '').toLowerCase()));
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">{label}</label>
+      <div className={`flex items-center w-full border-2 border-gray-200 focus-within:border-indigo-600 rounded-xl px-3 py-2 bg-white transition-colors ${disabled ? 'opacity-60 bg-gray-50 cursor-not-allowed' : ''}`}>
+        <input
+          type="text"
+          required={required}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          placeholder={placeholder}
+          className="w-full outline-none font-medium text-sm text-gray-800 bg-transparent disabled:cursor-not-allowed"
+          autoComplete="off"
+        />
+        <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''} cursor-pointer`} onClick={() => !disabled && setIsOpen(!isOpen)} />
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-[60] w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto custom-scrollbar py-1 left-0">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt, idx) => (
+              <div
+                key={idx}
+                className="px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer transition-colors flex items-center gap-2"
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+              >
+                <MapPin size={14} className="text-gray-400 shrink-0" /> <span className="truncate">{opt}</span>
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-sm text-gray-400 italic text-center">No exact match found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -55,9 +143,10 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentEditId, setCurrentEditId] = useState(null);
+  const [isSavingData, setIsSavingData] = useState(false); 
   
   const [formData, setFormData] = useState({
-    name: '', state: '', course: 'MBBS', exam: 'NEET',
+    name: '', state: '', district: '', course: 'MBBS', exam: 'NEET',
     cutoffs: { General: '', OBC: '', EWS: '', SC: '', ST: '' }
   });
 
@@ -137,15 +226,15 @@ export default function AdminDashboard() {
         const collegesData = [];
         for (let i = 1; i < lines.length; i++) {
           const row = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(item => item.replace(/^"|"$/g, '').trim());
-          if (row.length >= 3 && row[0] !== '') {
+          if (row.length >= 4 && row[0] !== '') {
             collegesData.push({
-              name: row[0], state: row[1] || 'India', course: row[2],
+              name: row[0], state: row[1] || 'India', district: row[2] || '', course: row[3],
               cutoffs: {
-                General: parseFloat(row[3]) || 0, 
-                OBC: parseFloat(row[4]) || 0, 
-                EWS: parseFloat(row[5]) || 0, 
-                SC: parseFloat(row[6]) || 0, 
-                ST: parseFloat(row[7]) || 0,
+                General: parseFloat(row[4]) || 0, 
+                OBC: parseFloat(row[5]) || 0, 
+                EWS: parseFloat(row[6]) || 0, 
+                SC: parseFloat(row[7]) || 0, 
+                ST: parseFloat(row[8]) || 0,
               }
             });
           }
@@ -177,7 +266,7 @@ export default function AdminDashboard() {
   };
 
   const downloadSampleCSV = () => {
-    const csvContent = "Name,State,Course,General (%),OBC (%),EWS (%),SC (%),ST (%)\n\"Holkar Science College, Indore\",Madhya Pradesh,B.Sc,88.5,85.0,84.0,78.5,75.0\n\"Hindu College, Delhi\",Delhi,B.A,98.0,96.5,96.0,92.0,90.0\nChrist University,Karnataka,BBA,92.5,0,0,0,0";
+    const csvContent = "Name,State,District,Course,General (%),OBC (%),EWS (%),SC (%),ST (%)\n\"Holkar Science College, Indore\",Madhya Pradesh,Indore,B.Sc,88.5,85.0,84.0,78.5,75.0\n\"Hindu College, Delhi\",Delhi,New Delhi,B.A,98.0,96.5,96.0,92.0,90.0\nChrist University,Karnataka,Bengaluru,BBA,92.5,0,0,0,0";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -248,7 +337,7 @@ export default function AdminDashboard() {
     setIsEditing(false);
     setCurrentEditId(null);
     setFormData({ 
-        name: '', state: '', exam: activeExamMode, 
+        name: '', state: '', district: '', exam: activeExamMode, 
         course: activeExamMode === 'NEET' ? 'MBBS' : 'B.Sc', 
         cutoffs: { General: '', OBC: '', EWS: '', SC: '', ST: '' } 
     });
@@ -261,6 +350,7 @@ export default function AdminDashboard() {
     setFormData({
       name: col.name,
       state: col.state || '',
+      district: col.district || '',
       exam: col.exam || 'NEET',
       course: col.course || 'MBBS',
       cutoffs: {
@@ -276,6 +366,7 @@ export default function AdminDashboard() {
 
   const handleModalSubmit = async (e) => {
     e.preventDefault();
+    setIsSavingData(true); 
     try {
       const url = isEditing ? `${API_BASE_URL}/api/colleges/edit/${currentEditId}` : `${API_BASE_URL}/api/colleges/add`;
       const method = isEditing ? "PUT" : "POST";
@@ -298,16 +389,17 @@ export default function AdminDashboard() {
       });
 
       if (response.ok) {
-        alert(`College successfully ${isEditing ? 'updated' : 'added'}!`);
-        setIsModalOpen(false);
         await clearBackendCache();
-        fetchColleges();
+        await fetchColleges();
+        setIsModalOpen(false); 
       } else {
         const err = await response.json();
         alert("Operation failed: " + err.error);
       }
     } catch (error) {
       alert("Error saving data: " + error.message);
+    } finally {
+      setIsSavingData(false);
     }
   };
 
@@ -319,7 +411,6 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans">
         
-        {/* 🚀 FIXED: Secure NoIndex SEO for Auth Screen */}
         <SEO title="Admin Login | EduFill Secure Access" url="/admin-secret-panel" noindex={true} />
         
         <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300">
@@ -357,7 +448,6 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-6 md:p-10 font-sans relative">
       
-      {/* 🚀 FIXED: Secure NoIndex SEO for Dashboard */}
       <SEO title="EduFill Admin Control Room" url="/admin-secret-panel" noindex={true} />
 
       <div className="max-w-7xl mx-auto space-y-6">
@@ -514,7 +604,7 @@ export default function AdminDashboard() {
                       <tr key={col.id} className="hover:bg-blue-50/30 group transition-colors">
                         <td className="py-3 px-4">
                           <p className="font-bold text-gray-800 text-sm">{col.name}</p>
-                          <p className="text-[11px] text-gray-500 font-medium">{col.course} • {col.state}</p>
+                          <p className="text-[11px] text-gray-500 font-medium">{col.course} • {col.state} {col.district ? `(${col.district})` : ''}</p>
                         </td>
                         <td className="py-3 px-2 text-center font-bold text-sm text-gray-700">{col.cutoffs?.General || '-'}{activeExamMode==='12th'&&col.cutoffs?.General?'%':''}</td>
                         <td className="py-3 px-2 text-center font-bold text-sm text-gray-700">{col.cutoffs?.OBC || '-'}{activeExamMode==='12th'&&col.cutoffs?.OBC?'%':''}</td>
@@ -550,11 +640,19 @@ export default function AdminDashboard() {
                 {isEditing ? <Edit size={20}/> : <Plus size={20}/>} 
                 {isEditing ? 'Edit Data' : 'Add New Data'} ({formData.exam})
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors">
+              <button onClick={() => !isSavingData && setIsModalOpen(false)} disabled={isSavingData} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors disabled:opacity-50">
                 <X size={20} />
               </button>
             </div>
             
+            {/* 🚀 FIXED: Loading Overlay inside Modal during Save */}
+            {isSavingData ? (
+               <div className="p-16 flex flex-col items-center justify-center text-center">
+                 <Loader2 size={48} className={`animate-spin mb-4 ${formData.exam === '12th' ? 'text-purple-600' : 'text-indigo-600'}`} />
+                 <h3 className="text-xl font-black text-gray-800 mb-2">Saving Data...</h3>
+                 <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Please do not close this window</p>
+               </div>
+            ) : (
             <form onSubmit={handleModalSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">College Name *</label>
@@ -562,11 +660,27 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">State *</label>
-                  <input required type="text" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-600 rounded-xl px-3 py-2 outline-none font-medium text-sm text-gray-800" placeholder="e.g. Madhya Pradesh" />
+                <div className="flex-1 min-w-[120px]">
+                  <SearchableDropdown 
+                    label="State *" 
+                    value={formData.state} 
+                    onChange={(val) => setFormData({...formData, state: val, district: ''})} 
+                    options={Object.keys(stateDistricts)} 
+                    placeholder="Search State" 
+                    required={true} 
+                  />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-[120px]">
+                  <SearchableDropdown 
+                    label="District" 
+                    value={formData.district} 
+                    onChange={(val) => setFormData({...formData, district: val})} 
+                    options={stateDistricts[formData.state] || []} 
+                    placeholder="Search District" 
+                    disabled={!formData.state}
+                  />
+                </div>
+                <div className="flex-[1.5] min-w-[150px]">
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Course</label>
                   <select value={formData.course} onChange={e => setFormData({...formData, course: e.target.value})} className="w-full border-2 border-gray-200 focus:border-indigo-600 rounded-xl px-3 py-2.5 outline-none font-medium text-sm text-gray-800 bg-white">
                     {formData.exam === '12th' ? (
@@ -597,6 +711,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
