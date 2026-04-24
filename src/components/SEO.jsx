@@ -14,6 +14,11 @@ export default function SEO({
   const siteUrl = "https://edufills.com";
   const fullUrl = url.startsWith('http') ? url : `${siteUrl}${url}`;
 
+  // 🚀 FIXED: Auto-truncate description for Bing/Yahoo SEO (Max 155 chars)
+  const safeDescription = description && description.length > 155 
+    ? description.substring(0, 152) + '...' 
+    : description;
+
   // 🌟 Default Organization Schema (Google Knowledge Graph ke liye) 🌟
   const defaultSchema = {
     "@context": "https://schema.org",
@@ -42,7 +47,7 @@ export default function SEO({
     <Helmet>
       {/* 🟢 Standard SEO Tags */}
       <title>{title}</title>
-      <meta name="description" content={description} />
+      <meta name="description" content={safeDescription} />
       <meta name="keywords" content={keywords} />
       <meta name="author" content="EduFill Solutions" />
       <meta name="publisher" content="EduFill" />
@@ -61,7 +66,7 @@ export default function SEO({
       <meta property="og:type" content={type} />
       <meta property="og:url" content={fullUrl} />
       <meta property="og:title" content={title} />
-      <meta property="og:description" content={description} />
+      <meta property="og:description" content={safeDescription} />
       <meta property="og:image" content={image} />
       <meta property="og:site_name" content="EduFill" />
 
@@ -69,7 +74,7 @@ export default function SEO({
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:url" content={fullUrl} />
       <meta name="twitter:title" content={title} />
-      <meta name="twitter:description" content={description} />
+      <meta name="twitter:description" content={safeDescription} />
       <meta name="twitter:image" content={image} />
 
       {/* 🟡 JSON-LD Structured Data (For Google Rich Snippets) */}
