@@ -218,12 +218,25 @@ export default function HomePage() {
       {/* 🌟 PREMIUM STICKY HEADER 🌟 */}
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-100 sticky top-0 z-40 transition-all">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-md border-b-2 border-emerald-700">
-              <span className="font-black text-white text-lg md:text-xl tracking-tighter drop-shadow-sm">EF</span>
+          
+          {/* 🚀 FIXED: New Premium SVG Logo with Link to Home */}
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="relative h-10 md:h-12 w-auto">
+              <img 
+                src="/edufill-brand-logo.svg?v=2" 
+                alt="EduFill Logo - Online Form Filling & College Predictor" 
+                title="EduFill Home"
+                width="48"
+                height="48"
+                loading="eager"
+                className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-300"
+              />
             </div>
-            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">Edu<span className="text-emerald-600">Fill</span></span>
-          </div>
+            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900 group-hover:text-emerald-700 transition-colors">
+              Edu<span className="text-emerald-600">Fill</span>
+            </span>
+          </Link>
+
           <div className="flex items-center gap-4">
             <a href="https://wa.me/919752519051" target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 px-4 py-2 rounded-full transition-colors">
               <HelpCircle size={18} /> Support

@@ -8,12 +8,22 @@ const Footer = () => (
       
       {/* 🌟 BRAND SECTION 🌟 */}
       <div className="md:col-span-12 lg:col-span-4">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 border-b-2 border-emerald-700 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="font-black text-white text-xl tracking-tighter">EF</span>
+        <Link to="/" className="flex items-center gap-3 mb-6 group inline-flex">
+          {/* 🚀 FIXED: Premium SVG Logo applied here with lazy loading for better performance */}
+          <div className="relative h-10 md:h-12 w-auto">
+            <img 
+              src="/edufill-brand-logo.svg?v=2" 
+              alt="EduFill Logo - Online Form Filling Portal" 
+              width="48"
+              height="48"
+              loading="lazy" 
+              className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-300"
+            />
           </div>
-          <span className="text-3xl font-extrabold tracking-tight">Edu<span className="text-emerald-500">Fill</span></span>
-        </div>
+          <span className="text-3xl font-extrabold tracking-tight group-hover:text-emerald-400 transition-colors">
+            Edu<span className="text-emerald-500">Fill</span>
+          </span>
+        </Link>
         <p className="text-gray-400 text-base pr-4 mb-8 leading-relaxed font-medium">
           Central India's first dedicated platform for competitive exam form filling. Making student lives easier, one form at a time.
         </p>
