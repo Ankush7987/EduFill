@@ -266,7 +266,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative selection:bg-emerald-200 pb-20 lg:pb-0 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative selection:bg-emerald-200 pb-24 lg:pb-0 overflow-x-hidden">
       <SEO
         title="EduFill | Secure Online Form Filling, College Predictor & PYQ Mock Tests"
         description="EduFill helps students fill NEET, JEE, CUET and college admission forms online with privacy-first expert support, secure in-app chat, slot booking, college predictor and live PYQ mock tests."
@@ -314,7 +314,10 @@ export default function HomePage() {
       </main>
 
       <Footer />
-      {Chatbot ? <Chatbot /> : null}
+
+      <div data-edufill-chatbot-offset>
+        {Chatbot ? <Chatbot /> : null}
+      </div>
 
       <style>{`
         html,
@@ -327,6 +330,31 @@ export default function HomePage() {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+
+        [data-edufill-chatbot-offset] .fixed {
+          z-index: 60 !important;
+        }
+
+        @media (max-width: 1023px) {
+          [data-edufill-chatbot-offset] .fixed {
+            right: 1rem !important;
+            bottom: calc(6.5rem + env(safe-area-inset-bottom)) !important;
+          }
+        }
+
+        @media (max-width: 380px) {
+          [data-edufill-chatbot-offset] .fixed {
+            right: 0.85rem !important;
+            bottom: calc(6.25rem + env(safe-area-inset-bottom)) !important;
+          }
+        }
+
+        @media (min-width: 1024px) {
+          [data-edufill-chatbot-offset] .fixed {
+            right: 1.5rem !important;
+            bottom: 1.5rem !important;
+          }
         }
       `}</style>
     </div>
