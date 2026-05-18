@@ -4,7 +4,9 @@ import axios from 'axios';
 import {
   AlertCircle,
   CheckCircle2,
+  Copy,
   Edit2,
+  FileText,
   Loader2,
   LockKeyhole,
   LogOut,
@@ -15,6 +17,8 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
+  UploadCloud,
+  Wand2,
   X,
 } from 'lucide-react';
 
@@ -28,6 +32,8 @@ const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://edufills.com').repla
 
 const ADMIN_SESSION_KEY = 'edufill_exam_admin_token';
 
+const MAX_IMPORT_FILE_SIZE = 300 * 1024;
+
 const CATEGORIES = [
   'Banking',
   'Government',
@@ -40,6 +46,62 @@ const CATEGORIES = [
   'Entrance Exam',
   'Medical',
 ];
+
+const EXAM_IMPORT_TEMPLATE = {
+  title: 'UP Cooperative Bank Various Post Recruitment 2026',
+  department: 'UP Cooperative Institution Service Board',
+  category: ['Government', 'Banking'],
+  shortInfo:
+    'UP Cooperative Bank has released notification for various posts. Candidates can check eligibility, age limit, fee, important dates and apply online before the last date.',
+  notificationNumber: '01/2026',
+  postDate: '2026-05-18',
+  startDate: '2026-05-20',
+  lastDate: '2026-06-20',
+  payFeeLastDate: '2026-06-20',
+  examDate: 'As per schedule',
+  admitCardDate: 'Before exam',
+  paymentMode: 'Debit Card / Credit Card / Net Banking / UPI',
+  feeRows: [
+    { label: 'UR / OBC / EWS', value: '₹500' },
+    { label: 'SC / ST', value: '₹250' },
+    { label: 'PH / PwD', value: '₹0' },
+  ],
+  ageRows: [
+    { label: 'Minimum Age', value: '21 Years' },
+    { label: 'Maximum Age', value: '40 Years' },
+    { label: 'Age Relaxation', value: 'As per official rules' },
+  ],
+  vacancyRows: [{ label: 'Total Posts', value: '2085' }],
+  qualificationRows: [
+    'Candidate must have Bachelor Degree from a recognized university.',
+    'Post-wise eligibility should be checked from official notification.',
+  ],
+  howRows: [
+    'Candidate should read the official notification carefully before applying online.',
+    'Open the official apply online link.',
+    'Fill all required details and upload documents.',
+    'Pay application fee if applicable.',
+    'Take printout of final submitted form.',
+  ],
+  instructionRows: [
+    'Before final submit, check all details carefully.',
+    'Keep scanned photo, signature and documents ready.',
+    'EduFill can help you fill the form safely.',
+  ],
+  officialLink: 'https://example.com',
+  applyOnlineLink: 'https://example.com/apply',
+  notificationLink: 'https://example.com/notification.pdf',
+  syllabusLink: '',
+  officialWebsite: 'https://example.com',
+  seoTitle: '',
+  metaDescription: '',
+  keywords: '',
+  slug: '',
+  ogImage: '',
+  canonicalUrl: '',
+  robots: 'index, follow',
+  status: 'Active',
+};
 
 const init = {
   title: '',
@@ -142,7 +204,6 @@ const serializeList = (rows) =>
 
 const toDate = (value) => {
   const date = new Date(value);
-
   return value && !Number.isNaN(date.getTime()) ? date.toISOString().split('T')[0] : '';
 };
 
@@ -153,6 +214,77 @@ const parseCategory = (value) =>
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
+
+const normalizeJsonArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    const rows = value.map((item) => sanitizeText(item, 700)).filter(Boolean);
+    return rows.length ? rows : fallback;
+  }
+
+  if (typeof value === 'string') {
+    const rows = value
+      .split(/\n|\||;/)
+      .map((item) => sanitizeText(item, 700))
+      .filter(Boolean);
+
+    return rows.length ? rows : fallback;
+  }
+
+  return fallback;
+};
+
+const normalizeJsonKVRows = (value, fallbackRows = [{ label: '', value: '' }]) => {
+  if (Array.isArray(value)) {
+    const rows = value
+      .map((item) => ({
+        label: sanitizeText(item?.label, 120),
+        value: sanitizeText(item?.value, 500),
+      }))
+      .filter((item) => item.label || item.value);
+
+    return rows.length ? rows : fallbackRows;
+  }
+
+  if (typeof value === 'string') {
+    const rows = parseKV(value, 'Info');
+    return rows.length ? rows : fallbackRows;
+  }
+
+  return fallbackRows;
+};
+
+const readJsonFile = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Please select a JSON file.'));
+      return;
+    }
+
+    if (file.size > MAX_IMPORT_FILE_SIZE) {
+      reject(new Error('JSON file size must be under 300KB.'));
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      reject(new Error('Only .json file is allowed.'));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || '{}'));
+        resolve(parsed);
+      } catch {
+        reject(new Error('Invalid JSON format. Please check your file.'));
+      }
+    };
+
+    reader.onerror = () => reject(new Error('Could not read file. Please try again.'));
+    reader.readAsText(file);
+  });
+};
 
 function getSavedAdminToken() {
   try {
@@ -222,6 +354,81 @@ function autoSEO(form, rows) {
     canonicalUrl: slug ? `${SITE_URL}/exam/${slug}` : '',
   };
 }
+
+const normalizeImportedExam = (rawData = {}) => {
+  const data = rawData.form || rawData.exam || rawData;
+  const importedRows = rawData.rows || data.rows || {};
+  const defaultRows = createDefaultRows();
+
+  const nextForm = {
+    ...init,
+    title: sanitizeText(data.title, 180),
+    department: sanitizeText(data.department, 120),
+    category: parseCategory(data.category),
+    shortInfo: sanitizeText(data.shortInfo, 1200),
+    notificationNumber: sanitizeText(data.notificationNumber, 120),
+    postDate: toDate(data.postDate),
+    startDate: toDate(data.startDate),
+    lastDate: toDate(data.lastDate),
+    payFeeLastDate: toDate(data.payFeeLastDate),
+    examDate: sanitizeText(data.examDate, 160),
+    admitCardDate: sanitizeText(data.admitCardDate, 160),
+    paymentMode: sanitizeText(data.paymentMode, 500),
+    officialLink: sanitizeText(data.officialLink, 1200),
+    applyOnlineLink: sanitizeText(data.applyOnlineLink, 1200),
+    notificationLink: sanitizeText(data.notificationLink, 1200),
+    syllabusLink: sanitizeText(data.syllabusLink, 1200),
+    officialWebsite: sanitizeText(data.officialWebsite, 1200),
+    seoTitle: sanitizeText(data.seoTitle, 70),
+    metaDescription: sanitizeText(data.metaDescription, 160),
+    keywords: sanitizeText(data.keywords, 800),
+    slug: slugify(data.slug || data.title),
+    ogImage: sanitizeText(data.ogImage, 1200),
+    canonicalUrl: sanitizeText(data.canonicalUrl, 1200),
+    robots: data.robots === 'noindex, nofollow' ? 'noindex, nofollow' : 'index, follow',
+    status: data.status === 'Expired' ? 'Expired' : 'Active',
+  };
+
+  const nextRows = {
+    feeRows: normalizeJsonKVRows(
+      data.feeRows || importedRows.feeRows || data.applicationFee,
+      defaultRows.feeRows
+    ),
+    ageRows: normalizeJsonKVRows(
+      data.ageRows || importedRows.ageRows || data.ageLimit,
+      defaultRows.ageRows
+    ),
+    vacancyRows: normalizeJsonKVRows(
+      data.vacancyRows || importedRows.vacancyRows || data.totalVacancies,
+      defaultRows.vacancyRows
+    ),
+    qualificationRows: normalizeJsonArray(
+      data.qualificationRows || importedRows.qualificationRows || data.qualification,
+      defaultRows.qualificationRows
+    ),
+    howRows: normalizeJsonArray(
+      data.howRows || importedRows.howRows || data.howToApply,
+      defaultRows.howRows
+    ),
+    instructionRows: normalizeJsonArray(
+      data.instructionRows || importedRows.instructionRows || data.importantInstructions,
+      defaultRows.instructionRows
+    ),
+  };
+
+  const seo = autoSEO(nextForm, nextRows);
+
+  nextForm.seoTitle = nextForm.seoTitle || seo.seoTitle;
+  nextForm.metaDescription = nextForm.metaDescription || seo.metaDescription;
+  nextForm.keywords = nextForm.keywords || seo.keywords;
+  nextForm.slug = nextForm.slug || seo.slug;
+  nextForm.canonicalUrl = nextForm.canonicalUrl || seo.canonicalUrl;
+
+  return {
+    nextForm,
+    nextRows,
+  };
+};
 
 function Field({
   label,
@@ -492,6 +699,8 @@ export default function AddExamAlert() {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [search, setSearch] = useState('');
   const [editId, setEditId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [autoPublishImport, setAutoPublishImport] = useState(false);
 
   const handleAdminLogout = () => {
     clearAdminToken();
@@ -596,28 +805,30 @@ export default function AddExamAlert() {
     }));
   };
 
-  const payload = () => {
-    const seo = autoSEO(form, rows);
+  const buildPayloadFromState = (sourceForm, sourceRows) => {
+    const seo = autoSEO(sourceForm, sourceRows);
 
     return {
-      ...form,
-      title: sanitizeText(form.title, 180),
-      department: sanitizeText(form.department, 120),
-      shortInfo: sanitizeText(form.shortInfo, 1200),
-      category: Array.isArray(form.category) ? form.category.join(', ') : form.category,
-      applicationFee: serializeKV(rows.feeRows, 'Fee'),
-      ageLimit: serializeKV(rows.ageRows, 'Age'),
-      totalVacancies: serializeKV(rows.vacancyRows, 'Vacancy'),
-      qualification: serializeList(rows.qualificationRows),
-      howToApply: serializeList(rows.howRows),
-      importantInstructions: serializeList(rows.instructionRows),
-      seoTitle: form.seoTitle || seo.seoTitle,
-      metaDescription: form.metaDescription || seo.metaDescription,
-      keywords: form.keywords || seo.keywords,
-      slug: form.slug || slugify(form.title),
-      canonicalUrl: form.canonicalUrl || seo.canonicalUrl,
+      ...sourceForm,
+      title: sanitizeText(sourceForm.title, 180),
+      department: sanitizeText(sourceForm.department, 120),
+      shortInfo: sanitizeText(sourceForm.shortInfo, 1200),
+      category: Array.isArray(sourceForm.category) ? sourceForm.category.join(', ') : sourceForm.category,
+      applicationFee: serializeKV(sourceRows.feeRows, 'Fee'),
+      ageLimit: serializeKV(sourceRows.ageRows, 'Age'),
+      totalVacancies: serializeKV(sourceRows.vacancyRows, 'Vacancy'),
+      qualification: serializeList(sourceRows.qualificationRows),
+      howToApply: serializeList(sourceRows.howRows),
+      importantInstructions: serializeList(sourceRows.instructionRows),
+      seoTitle: sourceForm.seoTitle || seo.seoTitle,
+      metaDescription: sourceForm.metaDescription || seo.metaDescription,
+      keywords: sourceForm.keywords || seo.keywords,
+      slug: sourceForm.slug || slugify(sourceForm.title),
+      canonicalUrl: sourceForm.canonicalUrl || seo.canonicalUrl,
     };
   };
+
+  const payload = () => buildPayloadFromState(form, rows);
 
   const validate = (currentPayload) => {
     if (!adminToken) return 'Admin session expired. Please login again.';
@@ -635,6 +846,12 @@ export default function AddExamAlert() {
     }
 
     return '';
+  };
+
+  const cancel = () => {
+    setForm(init);
+    setRows(createDefaultRows());
+    setEditId(null);
   };
 
   const submit = async (event) => {
@@ -684,10 +901,96 @@ export default function AddExamAlert() {
     }
   };
 
-  const cancel = () => {
-    setForm(init);
-    setRows(createDefaultRows());
-    setEditId(null);
+  const publishImportedExam = async (sourceForm, sourceRows) => {
+    const currentPayload = buildPayloadFromState(sourceForm, sourceRows);
+    const error = validate(currentPayload);
+
+    if (error) {
+      setMessage({ text: error, type: 'error' });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await axios.post(`${API_BASE}/api/exams`, currentPayload, getAdminConfig(adminToken));
+
+      setMessage({
+        text: 'Imported exam published successfully.',
+        type: 'success',
+      });
+
+      cancel();
+      await fetchExams(adminToken);
+      setTab('table');
+    } catch (errorObject) {
+      if (isAuthError(errorObject)) {
+        handleAdminLogout();
+        setAdminLoginError('Admin session expired. Please login again.');
+        return;
+      }
+
+      setMessage({
+        text: getErrorMessage(errorObject, 'Import publish failed.'),
+        type: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportJsonFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    setImporting(true);
+    setMessage({ text: '', type: '' });
+
+    try {
+      const rawJson = await readJsonFile(file);
+      const { nextForm, nextRows } = normalizeImportedExam(rawJson);
+
+      setForm(nextForm);
+      setRows(nextRows);
+      setEditId(null);
+      setTab('form');
+
+      if (autoPublishImport) {
+        await publishImportedExam(nextForm, nextRows);
+      } else {
+        setMessage({
+          text: 'JSON imported successfully. Please review and click Publish SEO Page.',
+          type: 'success',
+        });
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setMessage({
+        text: error.message || 'Import failed.',
+        type: 'error',
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const copyImportTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(EXAM_IMPORT_TEMPLATE, null, 2));
+
+      setMessage({
+        text: 'JSON template copied. Paste it in AI and ask it to fill real exam details.',
+        type: 'success',
+      });
+    } catch {
+      setMessage({
+        text: 'Could not copy template. Browser clipboard permission blocked.',
+        type: 'error',
+      });
+    }
   };
 
   const edit = (exam) => {
@@ -860,6 +1163,79 @@ export default function AddExamAlert() {
 
         {tab === 'form' ? (
           <form onSubmit={submit} className="space-y-5">
+            <Card
+              title="AI JSON Upload"
+              sub="AI se fixed JSON banwao, upload karo aur form auto-fill ho jayega. Review ke baad publish karo."
+            >
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 lg:col-span-2">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-white p-3 text-emerald-600">
+                      <Wand2 size={22} />
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-emerald-900">
+                        Fast Exam Import
+                      </h4>
+                      <p className="mt-1 text-xs font-bold leading-relaxed text-emerald-700">
+                        AI ko official notification details do aur bolo ki EduFill JSON format me output de.
+                        JSON file upload karte hi title, dates, fee, age, vacancies, qualification, links aur SEO fields auto-fill ho jayenge.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gray-950 px-5 py-3 text-xs font-black text-white">
+                      {importing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                      Upload JSON File
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleImportJsonFile}
+                        className="hidden"
+                        disabled={importing || loading}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={copyImportTemplate}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-5 py-3 text-xs font-black text-emerald-700"
+                    >
+                      <Copy size={16} />
+                      Copy JSON Template
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={autoPublishImport}
+                      onChange={(event) => setAutoPublishImport(event.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600"
+                    />
+
+                    <span>
+                      <span className="block text-sm font-black text-gray-900">
+                        Auto Publish after upload
+                      </span>
+                      <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-500">
+                        Isko ON karne par JSON upload hote hi page live ho jayega. Safe option: pehle OFF rakho, review karo, phir publish karo.
+                      </span>
+                    </span>
+                  </label>
+
+                  <div className="mt-4 rounded-xl bg-gray-50 p-3 text-[11px] font-bold leading-relaxed text-gray-500">
+                    <FileText size={14} className="mb-1" />
+                    Allowed: .json only, max 300KB.
+                  </div>
+                </div>
+              </div>
+            </Card>
+
             <Card
               title={editId ? 'Edit SEO Ready Exam Page' : 'Create SEO Ready Exam Page'}
               sub="Raw data ko clean fields me fill karo."
