@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, X, MessageCircle, ArrowRight, ShieldCheck, Clock, ArrowLeft, Loader2, CheckCircle2, Calendar, FileText, AlertTriangle } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, updateDoc, doc } from "firebase/firestore";
@@ -15,6 +15,26 @@ const MASTER_TIME_SLOTS = [
   "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM", "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM",
   "08:00 PM", "08:30 PM", "09:00 PM", "09:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM"
 ];
+
+const normalizeMobile = (value) => String(value || '').replace(/\D/g, '').slice(0, 10);
+
+const isValidIndianMobile = (value) => /^[6-9]\d{9}$/.test(normalizeMobile(value));
+
+const safeTrim = (value) => String(value || '').trim();
+
+const getTodayISO = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60 * 1000).toISOString().split('T')[0];
+};
+
+const getStudentCollection = (institute) => {
+  if (institute === 'Ribosome Institute') return 'Ribosome_Students';
+  if (institute === 'Unacademy') return 'Unacademy_Students';
+  return 'Other_Students';
+};
+
+const ACTIVE_BOOKING_STATUSES = ['Pending', 'In Progress', 'Assigned'];
 
 const defaultData = {
   'neet': { title: "NEET UG 2026", startDate: "To be announced", lastDate: "To be announced", desc: "National Eligibility cum Entrance Test (NEET).", examValue: "NEET UG", requirements: ['Passport Size Photo', 'Signature'], edufillPromise: 'Zero Rejection Rate' },
@@ -68,9 +88,7 @@ export default function ExamFormPage() {
   const { examId } = useParams(); 
   const navigate = useNavigate();
   
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
-  const todayStr = new Date(now.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+  const todayStr = useMemo(() => getTodayISO(), []);
 
   const [examData, setExamData] = useState(defaultData[examId] || defaultData['default']);
   const [isFormLive, setIsFormLive] = useState(false);
@@ -86,7 +104,7 @@ export default function ExamFormPage() {
   const [assignedAgent, setAssignedAgent] = useState('');
   
   const [formData, setFormData] = useState({ 
-    exam: defaultData[examId]?.examValue || '', 
+    exam: defaultData[examId]?.examValue || defaultData.default.examValue || '', 
     institute: '', fullName: '', mobile: '', batchName: '', category: '', 
     slotDate: todayStr, 
     slotTime: '' 
@@ -131,7 +149,7 @@ export default function ExamFormPage() {
 
   useEffect(() => {
     if(!formData.institute) return;
-    let collectionName = formData.institute === "Ribosome Institute" ? "Ribosome_Students" : formData.institute === "Unacademy" ? "Unacademy_Students" : "Other_Students";
+    let collectionName = getStudentCollection(formData.institute);
     
     const checkCapacity = async () => {
       const qAgents = query(collection(db, "Employees"), where("institute", "==", formData.institute), where("active", "==", true));
@@ -151,7 +169,7 @@ export default function ExamFormPage() {
       const slotCounts = {};
       snapshot.forEach(doc => {
         const data = doc.data();
-        if (data.status === 'Pending' || data.status === 'In Progress' || data.status === 'Assigned') {
+        if (ACTIVE_BOOKING_STATUSES.includes(data.status)) {
           slotCounts[data.slotTime] = (slotCounts[data.slotTime] || 0) + 1;
         }
       });
@@ -171,17 +189,35 @@ export default function ExamFormPage() {
   };
 
   const handleChange = (e) => {
-    if (e.target.name === 'slotDate') {
-      const selectedDate = e.target.value;
+    const { name } = e.target;
+    let { value } = e.target;
+
+    if (name === 'mobile') {
+      value = normalizeMobile(value);
+    }
+
+    if (name === 'slotDate') {
+      const selectedDate = value;
       if (bookingSettings.holidays?.includes(selectedDate)) {
-        alert("This date is marked as an Off-Day / Holiday. Please choose another working date for your slot.");
-        setFormData({ ...formData, slotDate: '' });
+        alert('This date is marked as an Off-Day / Holiday. Please choose another working date for your slot.');
+        setFormData((prev) => ({ ...prev, slotDate: '', slotTime: '' }));
+        setReportingTime('');
         return;
       }
     }
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if(e.target.name === 'slotTime') {
-      setReportingTime(calculateReportingTime(e.target.value));
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'institute' ? { slotTime: '', batchName: '' } : {}),
+    }));
+
+    if (name === 'slotTime') {
+      setReportingTime(calculateReportingTime(value));
+    }
+
+    if (name === 'institute') {
+      setReportingTime('');
     }
   };
 
@@ -198,7 +234,7 @@ export default function ExamFormPage() {
       const busyAgentNames = [];
       bookingSnap.forEach(doc => {
         const data = doc.data();
-        if (data.status === 'Pending' || data.status === 'In Progress' || data.status === 'Assigned') {
+        if (ACTIVE_BOOKING_STATUSES.includes(data.status)) {
           if (data.assignedTo) busyAgentNames.push(data.assignedTo);
         }
       });
@@ -232,13 +268,41 @@ export default function ExamFormPage() {
       
       return selectedAgent.name; 
     } catch (error) { 
-      console.error("Agent Assignment Error:", error);
+      if (import.meta.env.DEV) {
+        console.warn('Agent Assignment Error:', error);
+      }
       return null; 
     }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
+
+    const cleanFullName = safeTrim(formData.fullName);
+    const cleanMobile = normalizeMobile(formData.mobile);
+    const cleanBatchName = safeTrim(formData.batchName);
+    const cleanCategory = safeTrim(formData.category);
+
+    if (!formData.institute || !cleanFullName || !cleanMobile || !cleanCategory || !formData.slotTime) {
+      alert('Please fill all required fields.');
+      return;
+    }
+
+    if (cleanFullName.length < 3) {
+      alert('Please enter a valid full name.');
+      return;
+    }
+
+    if (!isValidIndianMobile(cleanMobile)) {
+      alert('Please enter a valid 10-digit Indian WhatsApp number.');
+      return;
+    }
+
+    if (formData.institute !== 'Others' && !cleanBatchName) {
+      alert('Please enter your batch name.');
+      return;
+    }
+
     setLoading(true);
     try {
       if(instituteCapacity === 0) {
@@ -246,7 +310,7 @@ export default function ExamFormPage() {
         setLoading(false); return;
       }
 
-      let collectionName = formData.institute === "Ribosome Institute" ? "Ribosome_Students" : formData.institute === "Unacademy" ? "Unacademy_Students" : "Other_Students";
+      let collectionName = getStudentCollection(formData.institute);
       const newToken = generateToken(); 
       setCurrentCollection(collectionName);
       
@@ -260,7 +324,18 @@ export default function ExamFormPage() {
       setAssignedAgent(assignedAgentName); 
 
       const docRef = await addDoc(collection(db, collectionName), {
-        ...formData, reportingTime: reportingTime, tokenNumber: newToken, status: 'Pending', paymentStatus: 'Due', assignedTo: assignedAgentName, timestamp: serverTimestamp()
+        ...formData,
+        fullName: cleanFullName,
+        mobile: cleanMobile,
+        batchName: cleanBatchName,
+        category: cleanCategory,
+        reportingTime,
+        tokenNumber: newToken,
+        status: 'Pending',
+        paymentStatus: 'Due',
+        assignedTo: assignedAgentName,
+        source: 'Exam Form Page',
+        timestamp: serverTimestamp()
       });
 
       setCurrentStudentId(docRef.id); 
@@ -272,8 +347,10 @@ export default function ExamFormPage() {
       
       setStep(2); 
     } catch (error) { 
-      console.error(error);
-      alert("Something went wrong! Please try again."); 
+      if (import.meta.env.DEV) {
+        console.warn('Exam form booking error:', error);
+      }
+      alert('Something went wrong! Please try again.'); 
     } finally { 
       setLoading(false); 
     }
@@ -316,7 +393,7 @@ export default function ExamFormPage() {
         description={`Skip the cyber cafe queue! Let EduFill experts fill your ${examData.title} admission forms with 100% accuracy and zero rejection guarantee. Starts at ${examData.startDate}.`}
         keywords={`${examData.title} online form filling, ${examData.examValue} application form, registration, online cyber cafe, error free admission form`}
         url={`/apply/${examId}`} 
-        schemaMarkup={{
+        schema={{
           "@context": "https://schema.org",
           "@type": "Service",
           "name": `${examData.title} Online Form Filling`,
@@ -372,7 +449,7 @@ export default function ExamFormPage() {
                         <div className="space-y-5 pt-4 animate-in slide-in-from-bottom-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                             <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Full Name *</label><input type="text" name="fullName" required onChange={handleChange} value={formData.fullName} className="w-full border-2 rounded-xl px-4 py-3 focus:border-blue-500 outline-none" placeholder="As per 10th marksheet" /></div>
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">WhatsApp No. *</label><input type="tel" name="mobile" required maxLength="10" onChange={handleChange} value={formData.mobile} className="w-full border-2 rounded-xl px-4 py-3 focus:border-blue-500 outline-none" placeholder="10-digit number" /></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">WhatsApp No. *</label><input type="tel" name="mobile" required maxLength="10" inputMode="numeric" pattern="[6-9][0-9]{9}" onChange={handleChange} value={formData.mobile} className="w-full border-2 rounded-xl px-4 py-3 focus:border-blue-500 outline-none" placeholder="10-digit number" /></div>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

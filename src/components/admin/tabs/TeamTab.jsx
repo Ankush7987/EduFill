@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Shield, Trash2, Building, Briefcase, Hash, Filter } from 'lucide-react';
+import { UserPlus, Shield, Trash2, Building, Briefcase, Hash, Filter, Globe } from 'lucide-react';
 
 export default function TeamTab({ 
   employees, 
@@ -10,7 +10,6 @@ export default function TeamTab({
   deleteEmployee 
 }) {
   
-  // 🌟 NAYA STATE: Role Filter ke liye 🌟
   const [roleFilter, setRoleFilter] = useState('All');
 
   // Filter Employees based on BOTH Institute AND Role
@@ -35,7 +34,7 @@ export default function TeamTab({
         
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           
-          {/* 🌟 NAYA FILTER UI: Agent Role 🌟 */}
+          {/* Agent Role Filter */}
           <div className="relative">
             <select 
               className="w-full sm:w-auto appearance-none border-2 border-gray-200 rounded-xl pl-10 pr-8 py-2.5 font-bold text-gray-700 bg-white outline-none focus:border-blue-500 transition-colors"
@@ -49,14 +48,16 @@ export default function TeamTab({
             <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
 
-          {/* Existing Institute Filter */}
+          {/* Institute/Platform Filter */}
           <div className="relative">
             <select 
               className="w-full sm:w-auto appearance-none border-2 border-gray-200 rounded-xl pl-10 pr-8 py-2.5 font-bold text-gray-700 bg-white outline-none focus:border-blue-500 transition-colors"
               value={empInstituteFilter}
               onChange={(e) => setEmpInstituteFilter(e.target.value)}
             >
-              <option value="All">All Institutes</option>
+              <option value="All">All Locations</option>
+              {/* 🌟 NAYA OPTION: Online Expert Filter 🌟 */}
+              <option value="Online Expert (Website)">Online Expert (Website)</option>
               <option value="Ribosome Institute">Ribosome Institute</option>
               <option value="Unacademy">Unacademy</option>
               <option value="Others">Others</option>
@@ -83,61 +84,73 @@ export default function TeamTab({
             No agents found matching your filters.
           </div>
         ) : (
-          filteredEmployees.map((emp) => (
-            <div key={emp.id} className="bg-white rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-200 shadow-sm hover:shadow-md transition-all relative group">
-              
-              {/* Delete Button (Visible on hover) */}
-              <button 
-                onClick={() => deleteEmployee(emp.id)}
-                className="absolute top-4 right-4 text-gray-300 hover:text-red-500 bg-gray-50 hover:bg-red-50 p-2 rounded-full transition-colors opacity-100 md:opacity-0 group-hover:opacity-100"
-                title="Remove Agent"
-              >
-                <Trash2 size={18} />
-              </button>
+          filteredEmployees.map((emp) => {
+            // Check if it's an online agent
+            const isOnline = emp.institute?.toLowerCase().includes('online');
 
-              {/* Agent Info */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-xl border border-blue-100 uppercase">
-                  {emp.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-black text-lg text-gray-900 leading-tight">{emp.name}</h3>
-                  
-                  {/* Category Badge */}
-                  <div className="mt-1.5">
-                    {emp.role === '12th Counselling' ? (
-                      <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
-                        12th Counselling
-                      </span>
-                    ) : (
-                      <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
-                        NEET/JEE Forms
-                      </span>
-                    )}
+            return (
+              <div key={emp.id} className="bg-white rounded-2xl p-6 border-2 border-gray-100 hover:border-blue-200 shadow-sm hover:shadow-md transition-all relative group">
+                
+                {/* Delete Button (Visible on hover) */}
+                <button 
+                  onClick={() => deleteEmployee(emp.id)}
+                  className="absolute top-4 right-4 text-gray-300 hover:text-red-500 bg-gray-50 hover:bg-red-50 p-2 rounded-full transition-colors opacity-100 md:opacity-0 group-hover:opacity-100"
+                  title="Remove Agent"
+                >
+                  <Trash2 size={18} />
+                </button>
+
+                {/* Agent Info */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-xl border uppercase ${isOnline ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                    {emp.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-gray-900 leading-tight">{emp.name}</h3>
+                    
+                    {/* Role Badge */}
+                    <div className="mt-1.5 flex gap-1">
+                      {emp.role === '12th Counselling' ? (
+                        <span className="bg-purple-100 text-purple-700 border border-purple-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                          12th Counselling
+                        </span>
+                      ) : (
+                        <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                          NEET/JEE Forms
+                        </span>
+                      )}
+                      
+                      {/* Online Expert Badge */}
+                      {isOnline && (
+                         <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1" title="Handles Website Live Forms">
+                           <Globe size={10}/> Remote
+                         </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-3 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                  <Hash size={16} className="text-gray-400" />
-                  <span className="text-gray-400">Login PIN:</span> 
-                  <span className="font-mono font-bold text-gray-900 tracking-widest">{emp.pin}</span>
+                <div className="space-y-3 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                    <Hash size={16} className="text-gray-400" />
+                    <span className="text-gray-400">Login PIN:</span> 
+                    <span className="font-mono font-bold text-gray-900 tracking-widest">{emp.pin}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                    {isOnline ? <Globe size={16} className="text-emerald-400" /> : <Building size={16} className="text-gray-400" />}
+                    <span className="text-gray-400">Assigned To:</span> 
+                    <span className="font-bold text-gray-900 truncate">{emp.institute}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                    <Briefcase size={16} className="text-gray-400" />
+                    <span className="text-gray-400">Total Assigned:</span> 
+                    <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{emp.assignedCount || 0} Students</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                  <Building size={16} className="text-gray-400" />
-                  <span className="text-gray-400">Institute:</span> 
-                  <span className="font-bold text-gray-900 truncate">{emp.institute}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                  <Briefcase size={16} className="text-gray-400" />
-                  <span className="text-gray-400">Total Assigned:</span> 
-                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{emp.assignedCount || 0} Students</span>
-                </div>
-              </div>
 
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
 

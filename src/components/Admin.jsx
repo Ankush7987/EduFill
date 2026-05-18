@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones, Users, ShieldCheck, ShieldAlert, Trash2, Search, Sparkles, UserCog, BookOpen, Calendar } from 'lucide-react'; 
+import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones, Users, ShieldCheck, ShieldAlert, Trash2, Search, Sparkles, UserCog, BookOpen, Calendar, Globe, MessageSquare } from 'lucide-react'; 
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -25,8 +25,8 @@ import PredictorLeadsTab from './admin/tabs/PredictorLeadsTab';
 import RegisteredUsersTab from './admin/tabs/RegisteredUsersTab'; 
 import AgentTrackerTab from './admin/tabs/AgentTrackerTab'; 
 import MockTestManagerTab from './admin/tabs/MockTestManagerTab'; 
+import FeedbackTab from './admin/tabs/FeedbackTab'; 
 
-// 🚀 FIXED: Added SEO component for NoIndex security
 import SEO from '../components/SEO';
 
 export default function AdminPanel() {
@@ -117,7 +117,10 @@ export default function AdminPanel() {
         if (adminEmails.includes(user.email) || isFirestoreAdmin) {
           setIsAuthenticated(true);
         } else {
+          // Extra security: if user logged in but doesn't have admin rights, sign them out
+          await signOut(auth);
           setIsAuthenticated(false);
+          setError("❌ Access Denied! This account does not have Admin privileges.");
         }
       } else {
         setIsAuthenticated(false);
@@ -206,7 +209,16 @@ export default function AdminPanel() {
       localStorage.setItem('edufill_admin_auth', 'true'); 
     } catch (err) {
       console.error("Login Error:", err);
-      setError('❌ Incorrect Email or Password! Access Denied.');
+      // 🚀 FIXED: Better exact error messages from Firebase
+      if (err.code === 'auth/wrong-password') {
+        setError('❌ Wrong password! Please check your password and try again.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('❌ No account found with this admin email address.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('❌ Too many failed login attempts. Please reset your password or try again later.');
+      } else {
+        setError(`❌ Login Failed: ${err.message.replace('Firebase: ', '')}`);
+      }
     } finally {
       setIsLoggingIn(false);
     }
@@ -509,7 +521,6 @@ export default function AdminPanel() {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
         
-        {/* 🚀 FIXED: Secure NoIndex SEO for Admin Login Screen */}
         <SEO title="Admin Vault | EduFill Secure Access" url="/admin" noindex={true} />
 
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none"></div>
@@ -571,7 +582,6 @@ export default function AdminPanel() {
   return (
     <div className="h-screen bg-[#F1F5F9] flex flex-col md:flex-row overflow-hidden font-sans">
       
-      {/* 🚀 FIXED: Secure NoIndex SEO for Active Dashboard */}
       <SEO title="Admin Vault Dashboard | EduFill Secure Access" url="/admin" noindex={true} />
 
       {/* MOBILE HEADER */}
@@ -624,6 +634,7 @@ export default function AdminPanel() {
               <div>
                 <label className="block text-xs font-black text-gray-500 mb-2 uppercase tracking-widest">Assigned Institute</label>
                 <select value={empForm.institute} onChange={e => setEmpForm({...empForm, institute: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl px-4 py-3 outline-none font-bold text-gray-700">
+                  <option value="Online Expert (Website)">Online Expert (Website)</option>
                   <option value="Ribosome Institute">Ribosome Institute</option>
                   <option value="Unacademy">Unacademy</option>
                   <option value="Others">Others</option>
@@ -761,6 +772,10 @@ export default function AdminPanel() {
             {campRequests.filter(c => c.status === 'New Request').length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">New</span>}
           </button>
 
+          <button onClick={() => { setActiveTab('feedback'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'feedback' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[inset_4px_0_0_0_#14B8A6]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+            <div className="flex items-center gap-3"><MessageSquare size={20}/> Feedback Manager</div>
+          </button>
+
           <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-8">Database & Engine</div>
 
           <button onClick={() => { setActiveTab('mockTests'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'mockTests' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-[inset_4px_0_0_0_#A855F7]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
@@ -853,6 +868,8 @@ export default function AdminPanel() {
           {activeTab === 'missing' && <MissingTab missingRequests={missingRequests} formatTime={formatTime} resolveMissingRequest={resolveMissingRequest} deleteMissingRequest={deleteMissingRequest} />}
 
           {activeTab === 'camps' && <CampTab campRequests={campRequests} formatTime={formatTime} updateCampStatus={updateCampStatus} deleteCampRequest={deleteCampRequest} />}
+
+          {activeTab === 'feedback' && <FeedbackTab />}
 
           {activeTab === 'liveController' && <SettingsTab liveExams={liveExams} toggleExam={toggleExam} />}
         </div>
