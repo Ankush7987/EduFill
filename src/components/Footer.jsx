@@ -14,6 +14,37 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+// --- CUSTOM SVG ICONS (Taaki Lucide par depend na hona pade) ---
+const InstagramIcon = ({ size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+  </svg>
+);
+
+const YoutubeIcon = ({ size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path>
+    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+  </svg>
+);
+
+const TwitterIcon = ({ size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path>
+  </svg>
+);
+
+const LinkedinIcon = ({ size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+    <rect x="2" y="9" width="4" height="12"></rect>
+    <circle cx="4" cy="4" r="2"></circle>
+  </svg>
+);
+// ---------------------------------------------------------------
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
@@ -92,13 +123,13 @@ export default function Footer() {
               </div>
             </div>
 
-            {/* ERROR-FREE SOCIAL LINKS */}
+            {/* ERROR-FREE CUSTOM SOCIAL ICONS */}
             <div className="mt-6 flex items-center gap-3">
               {[
-                { label: 'YT', href: 'https://www.youtube.com/channel/UCJ7CAoqsawF-6fTI4Z9q1uQ' },
-                { label: 'X', href: 'https://x.com/EduFills' },
-                { label: 'IN', href: 'https://www.linkedin.com/company/edufills/?viewAsMember=true' },
-                { label: 'IG', href: 'https://www.instagram.com/edufills?igsh=dDl4NHg5NTZmaG83' },
+                { icon: <YoutubeIcon size={17} />, href: 'https://www.youtube.com/channel/UCJ7CAoqsawF-6fTI4Z9q1uQ' },
+                { icon: <TwitterIcon size={17} />, href: 'https://x.com/EduFills' },
+                { icon: <LinkedinIcon size={17} />, href: 'https://www.linkedin.com/company/edufills/?viewAsMember=true' },
+                { icon: <InstagramIcon size={17} />, href: 'https://www.instagram.com/edufills?igsh=dDl4NHg5NTZmaG83' },
               ].map((item, index) => (
                 <a
                   key={index}
@@ -106,9 +137,9 @@ export default function Footer() {
                   target="_blank"
                   rel="noreferrer"
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-slate-300 transition hover:border-emerald-400/40 hover:bg-emerald-500/15 hover:text-emerald-300"
-                  aria-label={`EduFill ${item.label} link`}
+                  aria-label="EduFill social link"
                 >
-                  <span className="text-xs font-black">{item.label}</span>
+                  {item.icon}
                 </a>
               ))}
             </div>
