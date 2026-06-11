@@ -14,48 +14,14 @@ import DocumentUploader from '../components/DocumentUploader';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import SEO from '../components/SEO';
-import { io } from 'socket.io-client';
 import LiveChatBox from '../components/LiveChatBox'; 
-
-const LIVE_API_BASE = (
-  import.meta.env.VITE_LIVE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_BACKEND_URL ||
-  'http://localhost:5000'
-).replace(/\/$/, '');
-
-const socket = io(LIVE_API_BASE, {
-  autoConnect: false,
-  transports: ['websocket', 'polling'],
-});
-
-const liveApiFetch = async (path, options = {}) => {
-  const controller = new AbortController();
-  const timeoutMs = Number(options.timeoutMs || 12000);
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(`${LIVE_API_BASE}${path}`, {
-      ...options,
-      signal: options.signal || controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-      },
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.success === false) {
-      throw new Error(data?.message || `Request failed: ${response.status}`);
-    }
-    return data;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-};
-
-const toLiveRequestId = (request = {}) =>
-  String(request?.requestId || request?._id || request?.id || request?.backendRequestId || request?.firebaseRequestId || '').trim();
+import { liveApiFetch } from '../services/liveApi';
+import {
+  getLiveSocket,
+  registerLiveAgent,
+  subscribeAgentLiveEvents,
+} from '../services/liveSocket';
+import { toLiveRequestId } from '../utils/liveRequestUtils';
 
 const normalizeLiveOffer = (offer = {}) => ({
   ...offer,
@@ -1509,8 +1475,7 @@ export default function AgentPanel() {
           }),
         });
 
-        if (!socket.connected) socket.connect();
-        socket.emit('live_register_agent', { employeeId: agentData.id });
+        registerLiveAgent(agentData.id);
 
         await liveApiFetch(`/api/live/agent/${agentData.id}/heartbeat`, { method: 'POST' });
 
@@ -1588,9 +1553,11 @@ export default function AgentPanel() {
     syncAndRegisterAgent();
     syncBackendQueue();
 
-    socket.on('live:offer_new', handleNewOffer);
-    socket.on('live:request_accepted', handleAccepted);
-    socket.on('live:request_completed', handleCompleted);
+    const cleanupSocket = subscribeAgentLiveEvents({
+      onOfferNew: handleNewOffer,
+      onAccepted: handleAccepted,
+      onCompleted: handleCompleted,
+    });
 
     const heartbeat = window.setInterval(() => {
       liveApiFetch(`/api/live/agent/${agentData.id}/heartbeat`, { method: 'POST' }).catch(() => {});
@@ -1611,9 +1578,7 @@ export default function AgentPanel() {
       window.clearInterval(heartbeat);
       window.clearInterval(offerPoller);
       window.clearInterval(backendQueuePoller);
-      socket.off('live:offer_new', handleNewOffer);
-      socket.off('live:request_accepted', handleAccepted);
-      socket.off('live:request_completed', handleCompleted);
+      cleanupSocket();
     };
   }, [isOnlineAgent, isLiveOnline, agentData?.id]);
 
@@ -1704,8 +1669,7 @@ export default function AgentPanel() {
       setAgentData(prev => prev ? { ...prev, ...updates, lastSeenAt: new Date().toISOString(), liveUpdatedAt: new Date().toISOString() } : prev);
 
       if (nextLiveStatus) {
-        if (!socket.connected) socket.connect();
-        socket.emit('live_register_agent', { employeeId: agentData.id });
+        registerLiveAgent(agentData.id);
         try {
           const offerData = await liveApiFetch(`/api/live/agent/${agentData.id}/offers`);
           const offers = (offerData.offers || []).map(normalizeLiveOffer).filter((offer) => offer.id);
@@ -1739,7 +1703,7 @@ export default function AgentPanel() {
         lastSeenAt: serverTimestamp(),
       }).catch(console.error);
     }
-    try { socket.disconnect(); } catch(e) {}
+    try { getLiveSocket().disconnect(); } catch(e) {}
     setIsAuthenticated(false);
     setAgentData(null);
     setIsLiveOnline(false);
@@ -2365,7 +2329,7 @@ export default function AgentPanel() {
     const firebaseRequestIdForFirestore = student?.firebaseRequestId || student?.liveRequestId || null;
 
     if (liveRequestIdForBackend) {
-      try { socket.emit('close_and_delete_chat', { roomId: liveRequestIdForBackend }); } catch(e){}
+      try { getLiveSocket().emit('close_and_delete_chat', { roomId: liveRequestIdForBackend }); } catch(e){}
       setChatTarget(null);
     }
 

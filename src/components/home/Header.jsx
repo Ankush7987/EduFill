@@ -15,6 +15,7 @@ import {
   Sparkles,
   X,
   Zap,
+  MapPin // 🚀 ADDED: MapPin icon for Offline Camp
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../firebase';
@@ -84,13 +85,16 @@ export default function Header({ currentUser, onOpenFeedback }) {
               <MobileNavLink to="/" active={isActivePath('/', true)} onClick={closeMobileMenu} icon={<Home size={18} />} label="Home" />
               <MobileNavLink to="/blogs" active={isActivePath('/blogs')} onClick={closeMobileMenu} icon={<FileText size={18} />} label="Blogs" />
               <MobileNavLink to="/exams" active={isActivePath('/exams') || isActivePath('/exam')} onClick={closeMobileMenu} icon={<Sparkles size={18} />} label="Latest Exams" />
+              
+              {/* 🚀 ADDED: Offline Camp Link for Mobile Menu */}
+              <MobileNavLink to="/offline-camp" active={isActivePath('/offline-camp')} onClick={closeMobileMenu} icon={<MapPin size={18} />} label="Offline Camp" />
+              
               <MobileNavLink to="/tools" active={isToolsActive} onClick={closeMobileMenu} icon={<Zap size={18} />} label="Tools" />
 
               <a href="https://wa.me/919752519051" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 font-bold text-gray-700">
                 <HelpCircle size={18} className="text-gray-400" /> Support
               </a>
 
-              {/* 🚀 FIXED: Feedback link to redirect to page */}
               <MobileNavLink
                 to="/feedback"
                 active={isActivePath('/feedback')}
@@ -138,6 +142,14 @@ export default function Header({ currentUser, onOpenFeedback }) {
               badge="New"
             />
 
+            {/* 🚀 ADDED: Offline Camp Link for Desktop Nav */}
+            <ActiveNavLink 
+              to="/offline-camp" 
+              active={isActivePath('/offline-camp')} 
+              icon={<MapPin size={16} />} 
+              label="Offline Camp" 
+            />
+
             <div className="relative group">
               <Link
                 to="/tools"
@@ -166,7 +178,6 @@ export default function Header({ currentUser, onOpenFeedback }) {
             <a href="https://wa.me/919752519051" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors">
               <HelpCircle size={16} className="text-gray-500" /> Support
             </a>
-            {/* 🚀 FIXED: Feedback link to redirect to page */}
             <ActiveTextLink to="/feedback" active={isActivePath('/feedback')} icon={<MessageSquare size={16} />} label="Feedback" />
             <button
               onClick={() => navigate('/vault')}
@@ -205,7 +216,6 @@ export default function Header({ currentUser, onOpenFeedback }) {
             <ShieldCheck size={17} />
             Expert
           </button>
-          {/* 🚀 FIXED: Feedback link for mobile bottom tab */}
           <BottomTab to="/feedback" active={isActivePath('/feedback')} icon={<MessageSquare size={17} />} label="Feedback" />
         </div>
       </div>

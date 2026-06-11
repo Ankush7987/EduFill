@@ -56,77 +56,21 @@ import {
   Smartphone,
 } from 'lucide-react';
 import SEO from '../components/SEO';
-import { io } from 'socket.io-client';
-
 import LiveChatBox from '../components/LiveChatBox';
 import DocumentUploader from '../components/DocumentUploader';
-
-const LIVE_API_BASE = (
-  import.meta.env.VITE_LIVE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_BACKEND_URL ||
-  'http://localhost:5000'
-).replace(/\/$/, '');
-
-const liveSocket = io(LIVE_API_BASE, {
-  autoConnect: false,
-  transports: ['websocket', 'polling'],
-});
-
-const toBackendRequestId = (request = {}) =>
-  String(request?._id || request?.id || request?.requestId || request?.backendRequestId || request?.firebaseRequestId || '').trim();
-
-const getBackendStatus = (request = {}) =>
-  String(request?.status || '').trim();
-
-const isSearchingStatus = (status = '') =>
-  ['Searching', 'Offered', 'QUEUED', 'OFFERED'].includes(String(status).trim());
-
-const isAcceptedStatus = (status = '') =>
-  ['Accepted', 'In Progress', 'ACCEPTED', 'IN_PROGRESS'].includes(String(status).trim());
-
-const isCompletedStatus = (status = '') =>
-  ['Completed', 'COMPLETED', 'Success', 'Done'].includes(String(status).trim());
-
-const getFirebaseIdToken = async () => {
-  if (!auth.currentUser) return '';
-  try {
-    return await auth.currentUser.getIdToken();
-  } catch (error) {
-    console.error('Unable to get Firebase ID token:', error);
-    return '';
-  }
-};
-
-const liveApiFetch = async (path, options = {}) => {
-  const token = await getFirebaseIdToken();
-  const currentUser = auth.currentUser;
-  const response = await fetch(`${LIVE_API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(currentUser?.uid ? { 'x-user-id': currentUser.uid } : {}),
-      ...(currentUser?.email ? { 'x-user-email': currentUser.email } : {}),
-      ...(options.headers || {}),
-    },
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.success === false) {
-    throw new Error(data?.message || `Request failed: ${response.status}`);
-  }
-  return data;
-};
-
-const toPastFormDate = (value) => {
-  if (!value) return null;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  if (value?.seconds) return new Date(value.seconds * 1000);
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
+import { liveApiFetch } from '../services/liveApi';
+import {
+  registerLiveStudent,
+  subscribeStudentLiveEvents,
+} from '../services/liveSocket';
+import {
+  toBackendRequestId,
+  getBackendStatus,
+  isSearchingStatus,
+  isAcceptedStatus,
+  isCompletedStatus,
+  toPastFormDate,
+} from '../utils/liveRequestUtils';
 
 const SERVICES = [
   { value: 'NEET UG', label: 'NEET UG Form Filling' },
@@ -437,9 +381,7 @@ export default function LiveConnect() {
 
     loadBackendRequests({ silent: true });
 
-    if (!liveSocket.connected) liveSocket.connect();
-
-    liveSocket.emit('live_register_student', { userId: user.uid });
+    registerLiveStudent(user.uid);
 
     const handleSearching = (payload = {}) => {
       const id = payload.requestId || payload.firebaseRequestId || reqIdRef.current;
@@ -487,19 +429,18 @@ export default function LiveConnect() {
       loadBackendRequests({ silent: true });
     };
 
-    liveSocket.on('live:request_searching', handleSearching);
-    liveSocket.on('live:request_accepted', handleAccepted);
-    liveSocket.on('live:request_completed', handleCompleted);
-    liveSocket.on('live:request_cancelled', handleCancelled);
+    const cleanupSocket = subscribeStudentLiveEvents({
+      onSearching: handleSearching,
+      onAccepted: handleAccepted,
+      onCompleted: handleCompleted,
+      onCancelled: handleCancelled,
+    });
 
     const poller = window.setInterval(() => loadBackendRequests({ silent: true }), 15000);
 
     return () => {
       window.clearInterval(poller);
-      liveSocket.off('live:request_searching', handleSearching);
-      liveSocket.off('live:request_accepted', handleAccepted);
-      liveSocket.off('live:request_completed', handleCompleted);
-      liveSocket.off('live:request_cancelled', handleCancelled);
+      cleanupSocket();
     };
   }, [user?.uid, isProfileComplete]);
 
@@ -704,8 +645,7 @@ export default function LiveConnect() {
 
       applyBackendRequestState(request, { keepSuccess: false });
 
-      if (!liveSocket.connected) liveSocket.connect();
-      liveSocket.emit('live_register_student', { userId: user.uid });
+      registerLiveStudent(user.uid);
       await loadBackendRequests({ silent: true });
     } catch (error) {
       console.error(error);

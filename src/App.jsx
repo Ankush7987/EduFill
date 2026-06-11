@@ -50,6 +50,9 @@ const AuthVaultWeb = lazy(() => import('./pages/AuthVaultWeb'));
 
 const Feedback = lazy(() => import('./pages/Feedback'));
 
+// 🚀 ADDED: Offline Camp Lazy Import
+const OfflineCamp = lazy(() => import('./components/OfflineCamp'));
+
 const SITE_URL = 'https://edufills.com';
 
 const siteStructuredData = {
@@ -228,6 +231,9 @@ const AppRoutes = () => {
             <Route path="/refund-policy" element={<RefundPolicy />} />
 
             <Route path="/campus-drive" element={<CampusDrive />} />
+
+            {/* 🚀 ADDED: Offline Camp Route */}
+            <Route path="/offline-camp" element={<OfflineCamp />} />
 
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/agent" element={<AgentPanel />} />

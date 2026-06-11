@@ -175,6 +175,11 @@ export default function HomePage() {
     }));
   }, [activeExams, dbExamContent]);
 
+  // 🚀 NAYA LOGIC: Sirf active (LIVE) exams ko filter karo upar banner ke liye
+  const currentlyLiveExams = useMemo(() => {
+    return finalExamsData.filter(exam => exam.isActive);
+  }, [finalExamsData]);
+
   const openFeedback = (type = 'feedback') => {
     setFeedbackType(sanitizeText(type, 30) || 'feedback');
     setFeedbackOpen(true);
@@ -298,6 +303,38 @@ export default function HomePage() {
 
       <Header currentUser={currentUser} onOpenFeedback={openFeedback} />
 
+      {/* 🚀 NAYA UI: LIVE EXAM BANNER (Sirf tabhi dikhega jab koi form live ho) */}
+      {currentlyLiveExams.length > 0 && (
+        <div className="bg-[#0f172a] text-white py-2.5 px-4 md:px-8 border-b border-gray-800 shadow-md relative z-40">
+          <div className="max-w-[1400px] mx-auto flex items-center justify-start sm:justify-center overflow-x-auto custom-scrollbar gap-3 sm:gap-5">
+            <div className="flex items-center gap-1.5 shrink-0 bg-red-500/20 text-red-400 text-[10px] sm:text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border border-red-500/30">
+              <span className="relative flex h-2 w-2 mr-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              Live Now
+            </div>
+            
+            <div className="flex items-center gap-4 sm:gap-6 text-sm font-bold text-gray-300 shrink-0">
+              {currentlyLiveExams.map((exam, index) => (
+                <div key={exam.id} className="flex items-center gap-4 sm:gap-6">
+                  <span 
+                    onClick={() => handleOpenExamPage(exam)}
+                    className="cursor-pointer hover:text-white hover:underline underline-offset-4 decoration-emerald-500 transition-all flex items-center gap-1.5"
+                  >
+                    {exam.title} <span className="hidden sm:inline">Form Filling</span>
+                  </span>
+                  {/* Dot separator between exam names */}
+                  {index < currentlyLiveExams.length - 1 && (
+                    <span className="w-1 h-1 rounded-full bg-gray-600"></span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 w-full">
         <HeroSection />
         <ProductCardsSection onGoToProduct={goToProduct} />
@@ -330,6 +367,15 @@ export default function HomePage() {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+
+        /* 🚀 NAYA STYLE: Banner ke andar scroll bar hide karne ke liye */
+        .custom-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .custom-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
 
         [data-edufill-chatbot-offset] .fixed {
