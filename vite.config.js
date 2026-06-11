@@ -13,7 +13,19 @@ export default defineConfig({
       threshold: 10240, // Sirf 10KB se badi files ko compress karega
     })
   ],
+  
+  // 🛠️ BUG FIX: In libraries ko pre-bundle karega taaki 'forwardRef' undefined na ho
+  optimizeDeps: {
+    include: ['recharts', 'react-is', 'prop-types', 'lucide-react']
+  },
+
   build: {
+    // 🛠️ BUG FIX: Mixed ES Modules (CommonJS + ESM) ko properly transform karega
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    },
+    
     // 🚀 CHUNK SPLITTING: Badi JS file ko chote hisso me todega mobile ke liye
     rollupOptions: {
       output: {
@@ -29,6 +41,10 @@ export default defineConfig({
           // Icons ko alag load hone do
           if (id.includes('node_modules/lucide-react')) {
             return 'lucide-icons';
+          }
+          // 📊 Recharts aur uski dependencies (d3) ko ek alag chunk me daala hai
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/react-smooth') || id.includes('node_modules/d3-')) {
+            return 'recharts-vendor';
           }
           // Baaki bache hue saare third-party packages (node_modules) ek 'vendor' file me
           if (id.includes('node_modules')) {
