@@ -40,6 +40,8 @@ const API_BASE_URL = (
   (import.meta.env.DEV ? 'http://localhost:5000' : '')
 ).replace(/\/$/, '');
 
+const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://edufill.in').replace(/\/$/, '');
+
 const JOB_CATEGORIES = [
   { id: 'All', label: 'View All', icon: LayoutGrid, color: 'text-emerald-600', iconBg: 'bg-emerald-50' },
   { id: 'Banking', label: 'Banking', icon: Landmark, color: 'text-blue-600', iconBg: 'bg-blue-50' },
@@ -499,14 +501,34 @@ export default function Exams() {
     document.getElementById('latest-jobs-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // 🔥 100% SEO: DYNAMIC JSON-LD STRUCTURED DATA (ItemList Schema) 🔥
+  const generateSchema = useMemo(() => {
+    return {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": filteredExams.slice(0, 10).map((exam, index) => ({
+        "@type": "ListItem",
+        "position": index + 1,
+        "item": {
+          "@type": "EducationEvent", // Match backend schema type
+          "name": exam.title,
+          "url": `${SITE_URL}${getExamDetailsPath(exam)}`
+        }
+      }))
+    };
+  }, [filteredExams]);
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#F6F8FB] flex flex-col font-sans selection:bg-emerald-200 pb-20 lg:pb-0">
       <SEO
-        title="Latest Job Updates | EduFill"
-        description="Find government and private jobs, application deadlines, eligibility, exam dates and verified job updates in one place."
+        title={`${selectedCategory === 'All' ? 'Latest Job Updates & Exam Forms' : `${selectedCategory} Job Updates & Forms`} | EduFill`}
+        description="Find government and private jobs, application deadlines, eligibility, exam dates and verified job updates in one place. Apply online instantly."
         keywords="latest job updates, government jobs, private jobs, exam forms, admit card, result, EduFill"
         url="/exams"
       />
+      
+      {/* Injecting SEO Schema */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(generateSchema) }} />
 
       <Header currentUser={null} onOpenFeedback={() => {}} />
 

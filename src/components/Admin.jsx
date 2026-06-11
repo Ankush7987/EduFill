@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones, Users, ShieldCheck, ShieldAlert, Trash2, Search, Sparkles, UserCog, BookOpen, Calendar, Globe, MessageSquare } from 'lucide-react'; 
+// 🚀 FIXED: Added 'Phone' icon to the import list below to prevent crash on View Docs modal
+import { LayoutDashboard, LogOut, Settings, X, Building, FileText, Upload, AlertTriangle, FileWarning, RefreshCw, Loader2, Crop as CropIcon, RotateCw, Menu, UserPlus, Shield, Check, Headphones, Users, ShieldCheck, ShieldAlert, Trash2, Search, Sparkles, UserCog, BookOpen, Calendar, Globe, MessageSquare, Phone } from 'lucide-react'; 
 import imageCompression from 'browser-image-compression';
 import { jsPDF } from 'jspdf';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
@@ -46,6 +47,7 @@ export default function AdminPanel() {
   }, [activeTab]);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   
   const [bookings, setBookings] = useState([]);
   const [campRequests, setCampRequests] = useState([]); 
@@ -117,7 +119,6 @@ export default function AdminPanel() {
         if (adminEmails.includes(user.email) || isFirestoreAdmin) {
           setIsAuthenticated(true);
         } else {
-          // Extra security: if user logged in but doesn't have admin rights, sign them out
           await signOut(auth);
           setIsAuthenticated(false);
           setError("❌ Access Denied! This account does not have Admin privileges.");
@@ -209,7 +210,6 @@ export default function AdminPanel() {
       localStorage.setItem('edufill_admin_auth', 'true'); 
     } catch (err) {
       console.error("Login Error:", err);
-      // 🚀 FIXED: Better exact error messages from Firebase
       if (err.code === 'auth/wrong-password') {
         setError('❌ Wrong password! Please check your password and try again.');
       } else if (err.code === 'auth/user-not-found') {
@@ -734,85 +734,104 @@ export default function AdminPanel() {
       )}
 
       {/* 🌟 PREMIUM SIDEBAR (Dark Modern Theme) With Invisible Scrollbar 🌟 */}
-      <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50 w-72 bg-[#0F172A] text-white flex flex-col flex-shrink-0 shadow-2xl border-r border-gray-800`}>
-        <div className="p-6 border-b border-gray-800 flex items-center gap-4 bg-[#0B1120]">
-          <div className="relative w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg border-b-2 border-emerald-700">
-            <span className="font-black text-white text-xl">EF</span>
+      <div className={`
+        fixed inset-y-0 left-0 z-50 h-full transition-all duration-300 ease-in-out flex-shrink-0 shadow-2xl
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:relative md:translate-x-0 
+        ${isDesktopSidebarOpen ? 'md:w-72' : 'md:w-0'}
+        overflow-hidden
+      `}>
+        <aside className="w-72 h-full bg-[#0F172A] text-white flex flex-col border-r border-gray-800">
+          <div className="p-6 border-b border-gray-800 flex items-center gap-4 bg-[#0B1120]">
+            <div className="relative w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg border-b-2 border-emerald-700">
+              <span className="font-black text-white text-xl">EF</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-black tracking-tight">Admin Vault</h2>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Control Center</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-black tracking-tight">Admin Vault</h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Control Center</p>
+          
+          <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            
+            <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-2">Operations</div>
+            
+            <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[inset_4px_0_0_0_#10B981]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <LayoutDashboard size={20}/> Dashboard
+            </button>
+            
+            <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[inset_4px_0_0_0_#10B981]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <Headphones size={20}/> Counselling Leads
+            </button>
+
+            <button onClick={() => { setActiveTab('predictor'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'predictor' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20 shadow-[inset_4px_0_0_0_#F97316]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <div className="flex items-center gap-3"><Sparkles size={20}/> AI Predictor Leads</div>
+              {newPredictorLeadsCount > 0 && <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">{newPredictorLeadsCount} New</span>}
+            </button>
+
+            <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20 shadow-[inset_4px_0_0_0_#EF4444]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <div className="flex items-center gap-3"><FileWarning size={20}/> Missing Docs</div>
+              {pendingMissingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">{pendingMissingCount}</span>}
+            </button>
+            
+            <button onClick={() => { setActiveTab('camps'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-[inset_4px_0_0_0_#6366F1]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <div className="flex items-center gap-3"><Building size={20}/> B2B Camp Requests</div>
+              {campRequests.filter(c => c.status === 'New Request').length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">New</span>}
+            </button>
+
+            <button onClick={() => { setActiveTab('feedback'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'feedback' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[inset_4px_0_0_0_#14B8A6]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <div className="flex items-center gap-3"><MessageSquare size={20}/> Feedback Manager</div>
+            </button>
+
+            <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-8">Database & Engine</div>
+
+            <button onClick={() => { setActiveTab('mockTests'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'mockTests' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-[inset_4px_0_0_0_#A855F7]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <BookOpen size={20}/> Live Mock Engine
+            </button>
+
+            <button onClick={() => { setActiveTab('registeredUsers'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'registeredUsers' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[inset_4px_0_0_0_#3B82F6]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <Users size={20}/> Users Database
+            </button>
+            
+            <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-8">Management</div>
+
+            <button onClick={() => { setActiveTab('team'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'team' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-[inset_4px_0_0_0_#F59E0B]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <Shield size={20}/> Team Management
+            </button>
+            
+            <button onClick={() => { setActiveTab('agentTracker'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'agentTracker' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[inset_4px_0_0_0_#06B6D4]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <UserCog size={20}/> Agent Tracker
+            </button>
+            
+            <button onClick={() => { setActiveTab('liveController'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'liveController' ? 'bg-gray-100 text-gray-900 border border-gray-200 shadow-[inset_4px_0_0_0_#111827]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
+              <Settings size={20}/> Form Settings
+            </button>
+          </nav>
+
+          <div className="p-4 border-t border-gray-800 bg-[#0B1120]">
+            <button onClick={handleLogout} className="flex justify-center items-center gap-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 w-full py-3.5 rounded-xl font-black text-sm transition-colors group">
+              <LogOut size={18} className="group-hover:-translate-x-1 transition-transform"/> Secure Logout
+            </button>
           </div>
-        </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          
-          <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-2">Operations</div>
-          
-          <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[inset_4px_0_0_0_#10B981]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <LayoutDashboard size={20}/> Dashboard
-          </button>
-          
-          <button onClick={() => { setActiveTab('counselling'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'counselling' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[inset_4px_0_0_0_#10B981]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <Headphones size={20}/> Counselling Leads
-          </button>
-
-          <button onClick={() => { setActiveTab('predictor'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'predictor' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20 shadow-[inset_4px_0_0_0_#F97316]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <div className="flex items-center gap-3"><Sparkles size={20}/> AI Predictor Leads</div>
-            {newPredictorLeadsCount > 0 && <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">{newPredictorLeadsCount} New</span>}
-          </button>
-
-          <button onClick={() => { setActiveTab('missing'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'missing' ? 'bg-red-500/10 text-red-400 border border-red-500/20 shadow-[inset_4px_0_0_0_#EF4444]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <div className="flex items-center gap-3"><FileWarning size={20}/> Missing Docs</div>
-            {pendingMissingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">{pendingMissingCount}</span>}
-          </button>
-          
-          <button onClick={() => { setActiveTab('camps'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'camps' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-[inset_4px_0_0_0_#6366F1]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <div className="flex items-center gap-3"><Building size={20}/> B2B Camp Requests</div>
-            {campRequests.filter(c => c.status === 'New Request').length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">New</span>}
-          </button>
-
-          <button onClick={() => { setActiveTab('feedback'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'feedback' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-[inset_4px_0_0_0_#14B8A6]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <div className="flex items-center gap-3"><MessageSquare size={20}/> Feedback Manager</div>
-          </button>
-
-          <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-8">Database & Engine</div>
-
-          <button onClick={() => { setActiveTab('mockTests'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'mockTests' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-[inset_4px_0_0_0_#A855F7]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <BookOpen size={20}/> Live Mock Engine
-          </button>
-
-          <button onClick={() => { setActiveTab('registeredUsers'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'registeredUsers' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[inset_4px_0_0_0_#3B82F6]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <Users size={20}/> Users Database
-          </button>
-          
-          <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-8">Management</div>
-
-          <button onClick={() => { setActiveTab('team'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'team' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-[inset_4px_0_0_0_#F59E0B]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <Shield size={20}/> Team Management
-          </button>
-          
-          <button onClick={() => { setActiveTab('agentTracker'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'agentTracker' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[inset_4px_0_0_0_#06B6D4]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <UserCog size={20}/> Agent Tracker
-          </button>
-          
-          <button onClick={() => { setActiveTab('liveController'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'liveController' ? 'bg-gray-100 text-gray-900 border border-gray-200 shadow-[inset_4px_0_0_0_#111827]' : 'text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent'}`}>
-            <Settings size={20}/> Form Settings
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-gray-800 bg-[#0B1120]">
-          <button onClick={handleLogout} className="flex justify-center items-center gap-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 w-full py-3.5 rounded-xl font-black text-sm transition-colors group">
-            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform"/> Secure Logout
-          </button>
-        </div>
-      </aside>
+        </aside>
+      </div>
 
       {/* 🌟 MAIN CONTENT AREA (Premium Light Canvas) 🌟 */}
-      <main className="flex-1 overflow-y-auto relative bg-[#F8FAFC]">
+      <main className="flex-1 overflow-y-auto relative bg-[#F8FAFC] flex flex-col">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNFMkU4RjAiLz48L3N2Zz4=')] opacity-50 z-0 pointer-events-none"></div>
         
-        <div className="relative z-10 p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto">
+        {/* 🌟 NEW: Desktop Sidebar Toggle Button 🌟 */}
+        <div className="hidden md:flex items-center p-4 md:px-6 lg:px-10 pb-0 relative z-20">
+          <button 
+            onClick={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+            className="p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 text-gray-600 hover:text-emerald-600 hover:bg-gray-50 transition-all focus:outline-none flex items-center gap-2 group"
+            title="Toggle Sidebar"
+          >
+            <Menu size={20} className="group-hover:scale-110 transition-transform" />
+          </button>
+        </div>
+
+        <div className="relative z-10 p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto w-full flex-1">
           {activeTab === 'dashboard' && (
             <DashboardTab 
               bookings={bookings} loading={loading} filteredBookings={filteredBookings} 

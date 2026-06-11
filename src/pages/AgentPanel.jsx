@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, getDocs, getDoc, updateDoc, doc, addDoc, serverTimestamp, arrayUnion, increment, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
-// 🌟 FIX: Added MapPin, Users, LayoutDashboard, Search, ShieldCheck to imports 🌟
 import { 
   UserCircle, Lock, Loader2, LogOut, CheckCircle, Clock, FileText, 
   MessageCircle, X, Check, Camera, Printer, IndianRupee, Upload, 
   PlusCircle, Bell, UserCheck, UserX, Coffee, Crop as CropIcon, 
-  Zap, Radio, Globe, AlertCircle, MapPin, Users, LayoutDashboard, Search, ShieldCheck, RotateCw 
+  Zap, Radio, Globe, AlertCircle, MapPin, Users, LayoutDashboard, Search, ShieldCheck, RotateCw, Phone, Download, Edit
 } from 'lucide-react';
 import PaymentModal from '../components/admin/PaymentModal';
 import WalkInModal from '../components/admin/WalkInModal';
@@ -115,7 +114,6 @@ const buildOfferPayload = (agent = {}) => {
   };
 };
 
-
 const clearOfferPayload = () => ({
   offerAgentId: null,
   offerAgentName: null,
@@ -153,7 +151,6 @@ const getEligibleOnlineAgentsForRequest = (request = {}, onlineAgents = []) => {
       return true;
     })
     .sort((a, b) => {
-      // Rapido style fair order: free/less-loaded agent first, then least recently offered.
       const aCount = Number(a?.assignedCount || a?.todayAssignedCount || 0);
       const bCount = Number(b?.assignedCount || b?.todayAssignedCount || 0);
       if (aCount !== bCount) return aCount - bCount;
@@ -170,8 +167,6 @@ const pickNextOnlineAgentForRequest = (request = {}, onlineAgents = [], fallback
   const candidates = getEligibleOnlineAgentsForRequest(request, onlineAgents);
   if (candidates.length) return candidates[0];
 
-  // Safety fallback: if this browser belongs to an online agent and Firestore agent-list is delayed,
-  // allow this agent to claim a free request. This prevents requests from getting stuck.
   if (fallbackAgent && isOnlineAgentEmployee({ ...fallbackAgent, isLiveOnline: true, liveStatus: 'online' })) {
     const fallbackId = normalizeAgentId(fallbackAgent?.id);
     const fallbackName = normalizeAgentName(fallbackAgent?.name);
@@ -636,7 +631,7 @@ const AgentStats = ({ assignedStudents, pendingCount, completedCount, totalColle
   </div>
 );
 
-const QueueTable = ({ loading, assignedStudents, openPaymentModal, togglePhotoDeliveryStatus, toggleConfirmationStatus, setSelectedStudent, setDocsModalOpen, setUploadTarget, setIsUploadModalOpen, sendReminder, markAsArrived, markAsAbsent, markAsCompleted, isOnlineAgent, setChatTarget }) => (
+const QueueTable = ({ loading, assignedStudents, openPaymentModal, togglePhotoDeliveryStatus, toggleConfirmationStatus, setSelectedStudent, setDocsModalOpen, setUploadTarget, setIsUploadModalOpen, sendReminder, markAsArrived, markAsAbsent, markAsCompleted, editApplicationNumber, isOnlineAgent, setChatTarget }) => (
   <div className="bg-white rounded-[2rem] shadow-sm border border-emerald-100 overflow-hidden flex flex-col">
     <div className="p-5 sm:p-6 border-b border-emerald-100 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-white shrink-0">
       <div>
@@ -669,7 +664,16 @@ const QueueTable = ({ loading, assignedStudents, openPaymentModal, togglePhotoDe
                   <p className="text-xs text-gray-500 font-bold flex items-center gap-1 mt-1 hover:text-indigo-600 cursor-pointer w-fit" onClick={() => window.open(`tel:${student?.mobile}`)}><MessageCircle size={12}/> {student?.mobile || 'N/A'}</p>
                   <div className="flex gap-1.5 mt-2">
                     <span className="text-[9px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-black uppercase tracking-widest">{student?.category || 'GEN'}</span>
-                    {student?.applicationNumber && student.applicationNumber !== 'N/A' && <span className="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded font-black uppercase tracking-widest truncate max-w-[100px]">ID: {student.applicationNumber}</span>}
+                    
+                    {/* 🌟 FIX: Added Edit Button functionality here 🌟 */}
+                    {student?.applicationNumber && student.applicationNumber !== 'N/A' && (
+                      <span className="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded font-black uppercase tracking-widest truncate max-w-[150px] flex items-center gap-1">
+                        ID: {student.applicationNumber}
+                        <button onClick={() => editApplicationNumber(student)} className="text-indigo-400 hover:text-indigo-800 transition-colors ml-0.5" title="Edit Application Number">
+                          <Edit size={10} />
+                        </button>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -764,21 +768,13 @@ export default function AgentPanel() {
   const [chatTarget, setChatTarget] = useState(null);
   const [pendingQueueTick, setPendingQueueTick] = useState(0);
 
-  // Legacy stuck form safety:
-  // Old Firestore snapshots can re-send Pending status after Mark Done.
-  // This local override keeps the old form completed in UI and prevents agent-busy lock.
   const completedOverridesRef = useRef(new Map());
-
-  // Accepted live request safety:
-  // If Firestore snapshot is delayed/missed, keep accepted student visible in queue
-  // so agent can chat, upload docs, take payment and mark done immediately.
   const pendingAcceptedStudentsRef = useRef(new Map());
 
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('edufill_completed_form_overrides') || '[]');
 
-      // Remove old buggy mobile-based overrides and invalid entries.
       const cleanEntries = (Array.isArray(saved) ? saved : []).filter(([key, value]) => {
         if (!key || String(key).startsWith('mobile:')) return false;
         if (!value || value.status !== 'Completed') return false;
@@ -799,10 +795,7 @@ export default function AgentPanel() {
     const liveRequestId = student?.liveRequestId || '';
     const backendRequestId = student?.backendRequestId || '';
     const firebaseRequestId = student?.firebaseRequestId || '';
-    // IMPORTANT:
-    // Do NOT use mobile/name as override key.
-    // Same student/mobile can create a new live request later; mobile-based override
-    // was marking new accepted requests as Completed automatically.
+    
     if (collectionName && id) keys.push(`${collectionName}:${id}`);
     if (liveRequestId) keys.push(`live:${liveRequestId}`);
     if (backendRequestId) keys.push(`backend:${backendRequestId}`);
@@ -857,8 +850,6 @@ export default function AgentPanel() {
       rawStatus === 'in progress' ||
       rawStatus === 'in_progress';
 
-    // If an active accepted/pending request comes from backend/Firestore, keep it active.
-    // Overrides are only for legacy rows that were manually marked done.
     if (isActiveStudent && student?.completed !== true && student?.isCompleted !== true) {
       return student;
     }
@@ -901,7 +892,6 @@ export default function AgentPanel() {
       _savedAt: Date.now(),
     };
 
-    // New accepted/current request must never inherit old Completed override.
     if (activeStudent.status !== 'Completed') {
       clearCompletedOverride(activeStudent);
       activeStudent.completed = false;
@@ -1228,10 +1218,6 @@ export default function AgentPanel() {
     return () => { unsubBookings.forEach(unsub => unsub()); unsubCamps(); unsubBooking(); };
   }, [isAuthenticated, agentData?.id, agentData?.name]);
 
-  // Critical production safety:
-  // If agent is marked busy/currentLiveRequestId exists but the queue row is missing,
-  // rescue the assigned student from backend queue, Firestore queue or Live_Form_Requests.
-  // This prevents the panel from getting stuck in busy mode without showing the student.
   useEffect(() => {
     if (!isAuthenticated || !agentData?.id) return undefined;
 
@@ -1408,7 +1394,6 @@ export default function AgentPanel() {
       if (await fetchBackendCurrentQueue()) return;
       if (await fetchLiveRequestByAgent()) return;
 
-      // Last-resort card: keeps Mark Done available even when old data was not mirrored.
       addRescuedStudent({
         id: currentStudentId || currentRequestId || `busy_${agentData.id}`,
         collectionName: '__backend_live_queue__',
@@ -1710,7 +1695,24 @@ export default function AgentPanel() {
     setOnlineAgents([]);
     localStorage.removeItem('edufill_agent_session');
   };
-  const toggleBreakStatus = async () => { /* Camp Logic */ };
+  
+  const toggleBreakStatus = async () => { 
+    if (!agentData?.id) return;
+    const nextBreakStatus = !agentData.onBreak;
+
+    const updates = {
+      onBreak: nextBreakStatus,
+      breakUpdatedAt: serverTimestamp(),
+    };
+
+    try {
+      await updateDoc(doc(db, 'Employees', agentData.id), updates);
+      setAgentData(prev => prev ? { ...prev, onBreak: nextBreakStatus } : prev);
+    } catch (error) {
+      console.error('Break status update failed:', error);
+      alert('Failed to update break status. Please try again.');
+    }
+  };
 
   const upsertAssignedStudent = (student) => {
     if (!student?.id && !student?.backendRequestId && !student?.liveRequestId) return;
@@ -1789,13 +1791,11 @@ export default function AgentPanel() {
         const hasOfferOwner = Boolean(getCurrentOfferAgentId(latestRequest) || getCurrentOfferAgentName(latestRequest));
         const offerStillActive = hasOfferOwner && !isOfferExpired(latestRequest);
 
-        // Never steal an active 10-sec offer from another agent.
         if (offerStillActive && !options.force) return null;
 
         let requestForPick = { ...latestRequest };
         let skippedByThisStep = null;
 
-        // On timeout, previous offered agent must be added to skipped list.
         if (hasOfferOwner && isOfferExpired(latestRequest)) {
           skippedByThisStep = {
             id: getCurrentOfferAgentId(latestRequest),
@@ -1804,7 +1804,6 @@ export default function AgentPanel() {
           requestForPick = buildSkippedRequest(requestForPick, skippedByThisStep);
         }
 
-        // On manual skip, current agent must be added to skipped list.
         if (options.skipAgentId || options.skipAgentName) {
           skippedByThisStep = {
             id: options.skipAgentId || agentData?.id,
@@ -1855,7 +1854,6 @@ export default function AgentPanel() {
           return { ...latestRequest, ...updatePayload, ...offerPayload };
         }
 
-        // No online agent available right now. Keep request Searching and let the next online agent claim it.
         transaction.update(reqRef, {
           ...updatePayload,
           ...clearOfferPayload(),
@@ -2061,8 +2059,6 @@ export default function AgentPanel() {
       setAcceptingId(null);
     }
   };
-
-
 
   useEffect(() => {
     const currentOffer = liveRequests?.[0];
@@ -2297,11 +2293,18 @@ export default function AgentPanel() {
     }
   };
 
+  // 🌟 FIX: Made Application Number Mandatory before completing 🌟
   const markAsCompleted = async (student) => {
     const appNumber = window.prompt("Enter Generated Application Number to Mark Done:");
-    if (appNumber === null) return;
+    
+    if (appNumber === null) return; // User clicked Cancel
+    
+    if (appNumber.trim() === '') {
+      alert("❌ Application Number is mandatory to mark the form as completed.");
+      return; 
+    }
 
-    const applicationNumber = appNumber || 'N/A';
+    const applicationNumber = appNumber.trim();
 
     const completePayload = {
       status: 'Completed',
@@ -2321,7 +2324,6 @@ export default function AgentPanel() {
       isCompleted: true,
     };
 
-    // Fast UI update first. Old stuck records should not block the agent UI.
     saveCompletedOverride(student, localUpdates);
     updateStudentInLocalState(student?.id, student?.collectionName, localUpdates);
 
@@ -2364,7 +2366,6 @@ export default function AgentPanel() {
             !row.mobile ||
             String(row.mobile).replace(/\D/g, '').slice(-10) === String(student.mobile).replace(/\D/g, '').slice(-10);
 
-          // Avoid completing a totally different student's row.
           if (sameAgent || sameStudent || field.includes('RequestId')) {
             await updateDoc(doc(db, collectionName, docSnap.id), data);
             count += 1;
@@ -2382,12 +2383,10 @@ export default function AgentPanel() {
     let firestoreWriteCount = 0;
 
     try {
-      // 1) Complete the visible queue record.
       if (await tryUpdateDocSafe(student?.collectionName, student?.id, completePayload, 'visible queue record')) {
         firestoreWriteCount += 1;
       }
 
-      // 2) Safety fallback: old records may not have collectionName.
       if (!firestoreWriteCount && student?.id) {
         for (const col of ['Other_Students', 'Slot_Bookings']) {
           if (await tryUpdateDocSafe(col, student.id, completePayload, 'fallback queue record')) {
@@ -2397,21 +2396,18 @@ export default function AgentPanel() {
         }
       }
 
-      // 3) Complete queue docs by request ids.
       for (const col of ['Other_Students', 'Slot_Bookings']) {
         firestoreWriteCount += await updateMatchingDocsSafe(col, 'liveRequestId', liveRequestIdForBackend, completePayload, 'liveRequestId queue record');
         firestoreWriteCount += await updateMatchingDocsSafe(col, 'backendRequestId', liveRequestIdForBackend, completePayload, 'backendRequestId queue record');
         firestoreWriteCount += await updateMatchingDocsSafe(col, 'firebaseRequestId', firebaseRequestIdForFirestore, completePayload, 'firebaseRequestId queue record');
       }
 
-      // 4) Last fallback by mobile in agent queue if old record has no request id.
       if (!firestoreWriteCount && student?.mobile) {
         for (const col of ['Other_Students', 'Slot_Bookings']) {
           firestoreWriteCount += await updateMatchingDocsSafe(col, 'mobile', student.mobile, completePayload, 'mobile queue record');
         }
       }
 
-      // 5) Complete legacy Live_Form_Requests record.
       if (firebaseRequestIdForFirestore) {
         if (await tryUpdateDocSafe('Live_Form_Requests', firebaseRequestIdForFirestore, {
           status: 'Completed',
@@ -2425,7 +2421,6 @@ export default function AgentPanel() {
         }
       }
 
-      // 6) Backend completion is best-effort for old/stale forms.
       if (liveRequestIdForBackend && agentData?.id) {
         await liveApiFetch(`/api/live/agent/${agentData.id}/request/${liveRequestIdForBackend}/complete`, {
           method: 'POST',
@@ -2442,7 +2437,6 @@ export default function AgentPanel() {
         });
       }
 
-      // 7) Free Firestore employee lock.
       if (agentData?.id) {
         await updateDoc(doc(db, 'Employees', agentData.id), {
           busy: false,
@@ -2454,7 +2448,6 @@ export default function AgentPanel() {
           console.warn('⚠️ Employee Firestore unlock skipped:', error);
         });
 
-        // 8) Free backend LiveAgent lock. This is best-effort and must never fail Mark Done.
         await liveApiFetch(`/api/live/agent/${agentData.id}/unblock`, {
           method: 'POST',
           body: JSON.stringify({
@@ -2490,7 +2483,6 @@ export default function AgentPanel() {
         } : prev);
       }
 
-      // Keep completed record visible but not busy even if old Firestore snapshot returns Pending.
       saveCompletedOverride(student, localUpdates);
       updateStudentInLocalState(student?.id, student?.collectionName, localUpdates);
 
@@ -2500,7 +2492,6 @@ export default function AgentPanel() {
 
       alert('Marked Done successfully. Agent is unlocked for next request.');
     } catch (error) {
-      // Emergency fallback: do not keep agent stuck due to any old legacy data error.
       console.error('Emergency Mark Done fallback used:', error);
 
       try {
@@ -2544,8 +2535,65 @@ export default function AgentPanel() {
     }
   };
 
+  // 🌟 FIX: Implemented logic to Edit Application Number 🌟
+  const editApplicationNumber = async (student) => {
+    const currentAppNum = student?.applicationNumber && student.applicationNumber !== 'N/A' ? student.applicationNumber : '';
+    const newAppNum = window.prompt("Edit Application Number:", currentAppNum);
+
+    if (newAppNum === null || newAppNum.trim() === '' || newAppNum.trim() === currentAppNum) {
+      return; 
+    }
+
+    const applicationNumber = newAppNum.trim();
+    const localUpdates = { applicationNumber };
+
+    saveCompletedOverride(student, localUpdates);
+    updateStudentInLocalState(student?.id, student?.collectionName, localUpdates);
+
+    try {
+      if (student?.collectionName && student?.id) {
+        await updateDoc(doc(db, student.collectionName, student.id), { applicationNumber });
+      }
+      const firebaseRequestIdForFirestore = student?.firebaseRequestId || student?.liveRequestId || null;
+      if (firebaseRequestIdForFirestore) {
+         await updateDoc(doc(db, 'Live_Form_Requests', firebaseRequestIdForFirestore), { applicationNumber }).catch(() => {});
+      }
+      alert("Application Number updated successfully.");
+    } catch (error) {
+      console.error("Failed to edit app number:", error);
+      alert("Failed to update application number in database.");
+    }
+  };
+
   const sendReminder = (mobile, name, reportingTime) => {
     window.open(`https://wa.me/91${mobile || ''}?text=${encodeURIComponent(`Hello ${name || 'Student'}, your EduFill slot is soon. Please reach by ${reportingTime || 'your slot time'}. Reply YES if coming.`)}`, '_blank');
+  };
+
+  const handleDownloadDoc = async (url, docLabel, studentName) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      const cleanLabel = docLabel.replace(/[^\w\s]/gi, '').trim().replace(/\s+/g, '_');
+      const cleanName = (studentName || 'Student').replace(/[^\w\s]/gi, '').trim().replace(/\s+/g, '_');
+      
+      let ext = url.split('.').pop().split(/#|\?/)[0];
+      if (!['jpg', 'jpeg', 'png', 'pdf'].includes(ext.toLowerCase())) {
+         ext = blob.type.includes('pdf') ? 'pdf' : 'jpg';
+      }
+
+      link.download = `${cleanName}_${cleanLabel}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download failed, opening in new tab instead', error);
+      window.open(url, '_blank');
+    }
   };
 
   const getAvailableSlots = () => {
@@ -2633,7 +2681,7 @@ export default function AgentPanel() {
 
       {docsModalOpen && selectedStudent && hasAnyDocuments(selectedStudent?.documents, selectedStudent?.vaultDocuments) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95">
+          <div className="bg-white rounded-[2rem] p-6 w-full max-w-xl shadow-2xl animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
               <div>
                 <h3 className="text-xl font-black text-gray-900 flex items-center gap-2"><FileText size={24} className="text-indigo-600"/> Digital Locker</h3>
@@ -2647,9 +2695,16 @@ export default function AgentPanel() {
                 return (
                   <div key={item.key} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 hover:bg-white border border-gray-100 hover:border-emerald-100 rounded-2xl transition-all shadow-sm group gap-3">
                     <span className="font-black text-gray-800 text-sm group-hover:text-emerald-700 transition-colors">{item.label}</span>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <a href={url} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none px-4 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-black shadow-sm transition-colors flex items-center justify-center gap-1.5"><Search size={14}/> View</a>
-                      <label className="flex-1 sm:flex-none px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors rounded-xl font-black text-xs cursor-pointer shadow-sm flex items-center justify-center gap-1.5">
+                    <div className="flex gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                      <a href={url} target="_blank" rel="noreferrer" className="flex-1 sm:flex-none px-3 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-black shadow-sm transition-colors flex items-center justify-center gap-1.5">
+                        <Search size={14}/> View
+                      </a>
+                      
+                      <button onClick={() => handleDownloadDoc(url, item.label, selectedStudent?.fullName)} className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-black shadow-sm transition-colors flex items-center justify-center gap-1.5">
+                        <Download size={14}/> Download
+                      </button>
+
+                      <label className="flex-1 sm:flex-none px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors rounded-xl font-black text-xs cursor-pointer shadow-sm flex items-center justify-center gap-1.5">
                         <Upload size={14}/> Replace
                         <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => handleReplaceFileChange(e, item.key)} />
                       </label>
@@ -2796,7 +2851,7 @@ export default function AgentPanel() {
           togglePhotoDeliveryStatus={togglePhotoDeliveryStatus} toggleConfirmationStatus={toggleConfirmationStatus} 
           setSelectedStudent={setSelectedStudent} setDocsModalOpen={setDocsModalOpen} setUploadTarget={setUploadTarget} 
           setIsUploadModalOpen={setIsUploadModalOpen} sendReminder={sendReminder} markAsArrived={markAsArrived} 
-          markAsAbsent={markAsAbsent} markAsCompleted={markAsCompleted}
+          markAsAbsent={markAsAbsent} markAsCompleted={markAsCompleted} editApplicationNumber={editApplicationNumber}
           isOnlineAgent={isOnlineAgent} 
           setChatTarget={setChatTarget}
         />
