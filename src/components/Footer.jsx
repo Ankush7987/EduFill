@@ -7,16 +7,11 @@ import {
   ChevronRight,
   FileText,
   Headphones,
-  Instagram,
-  Linkedin,
   Mail,
   MessageCircle,
   Phone,
   ShieldCheck,
   Sparkles,
-  Twitter,
-  Youtube,
-  Zap,
 } from 'lucide-react';
 
 export default function Footer() {
@@ -57,7 +52,6 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-4">
             <Link to="/" className="mb-5 inline-flex items-center gap-3">
-              {/* White badge makes the logo visible on dark footer */}
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white shadow-lg shadow-emerald-900/20">
                 <img
                   src="/edufill-brand-logo.svg?v=2"
@@ -98,12 +92,13 @@ export default function Footer() {
               </div>
             </div>
 
+            {/* ERROR-FREE SOCIAL LINKS */}
             <div className="mt-6 flex items-center gap-3">
               {[
-                { icon: <Instagram size={17} />, href: 'https://www.instagram.com/edufills?igsh=dDl4NHg5NTZmaG83' },
-                { icon: <Youtube size={17} />, href: 'https://www.youtube.com/channel/UCJ7CAoqsawF-6fTI4Z9q1uQ' },
-                { icon: <Twitter size={17} />, href: 'https://x.com/EduFills' },
-                { icon: <Linkedin size={17} />, href: 'https://www.linkedin.com/company/edufills/?viewAsMember=true' },
+                { label: 'YT', href: 'https://www.youtube.com/channel/UCJ7CAoqsawF-6fTI4Z9q1uQ' },
+                { label: 'X', href: 'https://x.com/EduFills' },
+                { label: 'IN', href: 'https://www.linkedin.com/company/edufills/?viewAsMember=true' },
+                { label: 'IG', href: 'https://www.instagram.com/edufills?igsh=dDl4NHg5NTZmaG83' },
               ].map((item, index) => (
                 <a
                   key={index}
@@ -111,9 +106,9 @@ export default function Footer() {
                   target="_blank"
                   rel="noreferrer"
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-slate-300 transition hover:border-emerald-400/40 hover:bg-emerald-500/15 hover:text-emerald-300"
-                  aria-label="EduFill social link"
+                  aria-label={`EduFill ${item.label} link`}
                 >
-                  {item.icon}
+                  <span className="text-xs font-black">{item.label}</span>
                 </a>
               ))}
             </div>
